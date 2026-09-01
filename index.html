@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es" class="dark scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClipForge - Convierte vídeos largos en Shorts virales con IA</title>
+    <meta name="description" content="La IA recorta, subtitula y publica tus vídeos automáticamente en TikTok, YouTube e Instagram. Detección automática de ganchos virales, subtítulos animados y reencuadre 9:16." />
+    <meta name="keywords" content="shorts, reels, tiktok, ia generativa, subtítulos animados, viral clips, youtube shorts, video editor, clipping ia" />
+    <meta name="author" content="ClipForge AI" />
+    <meta name="theme-color" content="#0a0a12" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ClipForge" />
+    <meta property="og:title" content="ClipForge - Convierte vídeos largos en Shorts virales con IA" />
+    <meta property="og:description" content="La IA recorta, subtitula y publica tus vídeos automáticamente en TikTok, YouTube e Instagram. 100 % gratis." />
+    <meta property="og:image" content="https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ClipForge - Convierte vídeos largos en Shorts virales con IA" />
+    <meta name="twitter:description" content="La IA recorta, subtitula y publica tus vídeos automáticamente en TikTok, YouTube e Instagram. 100 % gratis." />
+    <meta name="twitter:image" content="https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg" />
+
+    <!-- PWA & Mobile Web App -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ClipForge" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+    <script>
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            console.log('ClipForge PWA ServiceWorker registrado:', reg.scope);
+          }).catch(function(err) {
+            console.log('ClipForge PWA ServiceWorker error:', err);
+          });
+        });
+      }
+    </script>
+  </head>
+  <body class="bg-[#0a0a12] text-slate-100 font-['Inter',sans-serif] antialiased selection:bg-purple-600/30 selection:text-cyan-300 min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

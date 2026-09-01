@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" fill="none">
+  <defs>
+    <linearGradient id="pwaGrad192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9333ea" />
+      <stop offset="50%" stop-color="#ec4899" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="42" fill="#0f0f1c" />
+  <rect x="6" y="6" width="180" height="180" rx="36" stroke="url(#pwaGrad192)" stroke-width="3" stroke-opacity="0.3" />
+  <path d="M96 28C96 28 114 55 114 76C114 86.2 109.8 95.2 103.2 101.8C111.6 104.8 118.8 110.8 122.4 119.2C128.4 110.2 129.6 97.6 129.6 97.6C129.6 97.6 144 113.2 144 130C144 156.4 122.4 178 96 178C69.6 178 48 156.4 48 130C48 103 78 76 78 76C78 76 81 97 96 103C88.2 91 88.8 77.8 90.6 67C92.4 55 96 28 96 28Z" fill="url(#pwaGrad192)" />
+</svg>

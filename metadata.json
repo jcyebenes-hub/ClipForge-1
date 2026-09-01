@@ -1,0 +1,8 @@
+{
+  "name": "ClipForge 1.0",
+  "description": "Convierte vídeos largos en Shorts virales para TikTok, YouTube e Instagram con IA gratuita.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

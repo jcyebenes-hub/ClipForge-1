@@ -1,14 +1,14 @@
 # 🚀 GUÍA: Cómo hacer ClipForge REAL y funcional (registro de verdad)
 
 > ## ✅ ESTADO ACTUAL (actualizado 2026-09-01)
-> **¡Todo lo de abajo (Pasos 1-3) YA ESTÁ HECHO!** Con tu ayuda he ejecutado en tu Supabase:
-> - ✅ Las **7 tablas** creadas: `profiles`, `proyectos`, `clips`, `configs_canal`, `uso_usuario`, `publicaciones_programadas`, `user_oauth`
-> - ✅ El **bucket `media`** creado (privado, con políticas de seguridad por usuario)
-> - ✅ El **registro y login REALES probados** (creé y confirmé un usuario de prueba: `prueba.clipforge@gmail.com` / `ClipForge2026!` — puedes entrar con él)
-> - ✅ La app conectada a tu Supabase (URL + clave publicable en `.env.local`)
-> - ✅ El **preview en vivo** funcionando con el backend real
+> **¡Casi todo listo!** Lo hecho hasta ahora:
+> - ✅ Las **7 tablas** creadas en Supabase + bucket `media` + registro/login REALES probados
+> - ✅ **Clave de Groq validada y transcripción real probada** (Whisper funciona)
+> - ✅ Código arreglado (server de producción, SQL, render.yaml) — listo para subir
+> - ⏳ **Pendiente**: token GitHub con permiso de escritura → subir código → desplegar en Render
+> - ⏳ Opcional: Google OAuth, service_role key, worker YouTube
 >
-> **Te queda (más abajo):** Paso 4 (Google OAuth), Paso 5 (GROQ_API_KEY para transcripción real) y Paso 6 (desplegar en Render).
+> Las credenciales están en **`CREDENCIALES.md`** (no lo subas a GitHub).
 
 ---
 

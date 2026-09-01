@@ -21,7 +21,7 @@ interface RegistroPageProps {
 }
 
 export const RegistroPage: React.FC<RegistroPageProps> = ({ onNavigate }) => {
-  const { signUpWithEmail, signInWithGoogle, isSupabaseConfigured, demoSignIn } = useAuth();
+  const { signUpWithEmail, signInWithGoogle, isSupabaseConfigured } = useAuth();
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -60,17 +60,9 @@ export const RegistroPage: React.FC<RegistroPageProps> = ({ onNavigate }) => {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
-      if (!isSupabaseConfigured) {
-        onNavigate?.('/dashboard');
-      }
     } finally {
       setGoogleLoading(false);
     }
-  };
-
-  const handleDemoSignup = () => {
-    demoSignIn(nombre || 'Nuevo Creador', email || 'creador@clipforge.ai');
-    onNavigate?.('/dashboard');
   };
 
   return (
@@ -281,22 +273,6 @@ export const RegistroPage: React.FC<RegistroPageProps> = ({ onNavigate }) => {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Access */}
-          {!isSupabaseConfigured && (
-            <div className="mt-6 p-3 rounded-xl bg-purple-950/40 border border-purple-800/40 text-center">
-              <p className="text-xs text-purple-300 font-medium mb-2">
-                Modo Previsualización Rápida
-              </p>
-              <button
-                type="button"
-                onClick={handleDemoSignup}
-                className="w-full py-2 px-3 rounded-lg bg-purple-900/50 hover:bg-purple-800/60 text-xs font-bold text-cyan-300 border border-cyan-500/30 transition-colors cursor-pointer"
-              >
-                ⚡ Crear y Entrar como Creador Demo
-              </button>
-            </div>
-          )}
 
           {/* Footer link to Login */}
           <div className="mt-6 text-center text-xs text-slate-400">

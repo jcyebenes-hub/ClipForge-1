@@ -19,7 +19,7 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
-  const { signInWithEmail, signInWithGoogle, isSupabaseConfigured, demoSignIn } = useAuth();
+  const { signInWithEmail, signInWithGoogle, isSupabaseConfigured } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -46,17 +46,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
-      if (!isSupabaseConfigured) {
-        onNavigate?.('/dashboard');
-      }
     } finally {
       setGoogleLoading(false);
     }
-  };
-
-  const handleDemoLogin = () => {
-    demoSignIn('Alex Creador', 'alex@clipforge.ai');
-    onNavigate?.('/dashboard');
   };
 
   return (
@@ -225,22 +217,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Access banner if exploring */}
-          {!isSupabaseConfigured && (
-            <div className="mt-6 p-3 rounded-xl bg-purple-950/40 border border-purple-800/40 text-center">
-              <p className="text-xs text-purple-300 font-medium mb-2">
-                Modo Previsualización Rápida
-              </p>
-              <button
-                type="button"
-                onClick={handleDemoLogin}
-                className="w-full py-2 px-3 rounded-lg bg-purple-900/50 hover:bg-purple-800/60 text-xs font-bold text-cyan-300 border border-cyan-500/30 transition-colors cursor-pointer"
-              >
-                ⚡ Entrar como Usuario Demo
-              </button>
-            </div>
-          )}
 
           {/* Footer link to Register */}
           <div className="mt-6 text-center text-xs text-slate-400">

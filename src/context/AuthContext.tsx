@@ -14,13 +14,9 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (data: Partial<Profile>) => Promise<void>;
-  // Fallback demo login for instant preview testing
-  demoSignIn: (nombre?: string, email?: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const LOCAL_STORAGE_DEMO_USER_KEY = 'clipforge_demo_user';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -104,17 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           authListener?.subscription.unsubscribe();
         };
       } else {
-        // Check for local demo user session
-        const stored = localStorage.getItem(LOCAL_STORAGE_DEMO_USER_KEY);
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            setUser(parsed.user);
-            setProfile(parsed.profile);
-          } catch {
-            localStorage.removeItem(LOCAL_STORAGE_DEMO_USER_KEY);
-          }
-        }
+        // Sin Supabase configurado: no hay modo demo. Nada que restaurar.
         if (mounted) setLoading(false);
       }
     }
@@ -128,32 +114,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithEmail = async (email: string, password: string) => {
     if (!isSupabaseConfigured) {
-      // Mock instant login for local preview
-      const mockId = 'demo-user-' + Math.random().toString(36).substring(2, 8);
-      const name = email.split('@')[0] || 'Creador';
-      const demoUser = {
-        id: mockId,
-        email,
-        app_metadata: {},
-        user_metadata: { nombre: name },
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-      } as unknown as User;
-
-      const demoProfile: Profile = {
-        id: mockId,
-        email,
-        nombre: name,
-        plan: 'gratis',
-        marca_de_agua: true,
-        created_at: new Date().toISOString(),
-      };
-
-      setUser(demoUser);
-      setProfile(demoProfile);
-      localStorage.setItem(LOCAL_STORAGE_DEMO_USER_KEY, JSON.stringify({ user: demoUser, profile: demoProfile }));
-      toast.success('¡Sesión iniciada con éxito!');
-      return { error: null };
+      const error = new Error('La autenticación no está configurada. Contacta con el administrador.');
+      toast.error(error.message);
+      return { error };
     }
 
     try {
@@ -176,30 +139,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUpWithEmail = async (email: string, password: string, nombre: string) => {
     if (!isSupabaseConfigured) {
-      const mockId = 'demo-user-' + Math.random().toString(36).substring(2, 8);
-      const demoUser = {
-        id: mockId,
-        email,
-        app_metadata: {},
-        user_metadata: { nombre },
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-      } as unknown as User;
-
-      const demoProfile: Profile = {
-        id: mockId,
-        email,
-        nombre,
-        plan: 'gratis',
-        marca_de_agua: true,
-        created_at: new Date().toISOString(),
-      };
-
-      setUser(demoUser);
-      setProfile(demoProfile);
-      localStorage.setItem(LOCAL_STORAGE_DEMO_USER_KEY, JSON.stringify({ user: demoUser, profile: demoProfile }));
-      toast.success('¡Cuenta creada con éxito! Bienvenido a ClipForge.');
-      return { error: null };
+      const error = new Error('La autenticación no está configurada. Contacta con el administrador.');
+      toast.error(error.message);
+      return { error };
     }
 
     try {
@@ -231,29 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     if (!isSupabaseConfigured) {
-      const mockId = 'google-user-' + Math.random().toString(36).substring(2, 8);
-      const demoUser = {
-        id: mockId,
-        email: 'creador@google.com',
-        app_metadata: {},
-        user_metadata: { nombre: 'Creador Google' },
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-      } as unknown as User;
-
-      const demoProfile: Profile = {
-        id: mockId,
-        email: 'creador@google.com',
-        nombre: 'Creador Google',
-        plan: 'gratis',
-        marca_de_agua: true,
-        created_at: new Date().toISOString(),
-      };
-
-      setUser(demoUser);
-      setProfile(demoProfile);
-      localStorage.setItem(LOCAL_STORAGE_DEMO_USER_KEY, JSON.stringify({ user: demoUser, profile: demoProfile }));
-      toast.success('¡Sesión iniciada con Google!');
+      toast.error('El acceso con Google no está configurado todavía. Usa el registro con email.');
       return;
     }
 
@@ -277,7 +197,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setUser(null);
     setProfile(null);
-    localStorage.removeItem(LOCAL_STORAGE_DEMO_USER_KEY);
     toast.info('Has cerrado sesión');
   };
 
@@ -288,32 +207,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setProfile((prev) => (prev ? { ...prev, ...data } : null));
     toast.success('Perfil actualizado');
-  };
-
-  const demoSignIn = (nombre = 'Alex Rivera', email = 'alex@creador.com') => {
-    const mockId = 'demo-user-123';
-    const demoUser = {
-      id: mockId,
-      email,
-      app_metadata: {},
-      user_metadata: { nombre },
-      aud: 'authenticated',
-      created_at: new Date().toISOString(),
-    } as unknown as User;
-
-    const demoProfile: Profile = {
-      id: mockId,
-      email,
-      nombre,
-      plan: 'gratis',
-      marca_de_agua: true,
-      created_at: new Date().toISOString(),
-    };
-
-    setUser(demoUser);
-    setProfile(demoProfile);
-    localStorage.setItem(LOCAL_STORAGE_DEMO_USER_KEY, JSON.stringify({ user: demoUser, profile: demoProfile }));
-    toast.success(`¡Sesión iniciada como ${nombre}!`);
   };
 
   return (
@@ -328,7 +221,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInWithGoogle,
         signOut,
         updateProfile,
-        demoSignIn,
       }}
     >
       {children}

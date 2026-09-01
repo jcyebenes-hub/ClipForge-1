@@ -14,6 +14,7 @@ import {
   Flame 
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import { SupabaseStatusBadge } from '../../../components/common/SupabaseStatusBadge';
 import { toast } from 'sonner';
 
 interface RegistroPageProps {
@@ -21,7 +22,7 @@ interface RegistroPageProps {
 }
 
 export const RegistroPage: React.FC<RegistroPageProps> = ({ onNavigate }) => {
-  const { signUpWithEmail, signInWithGoogle, isSupabaseConfigured } = useAuth();
+  const { signUpWithEmail, signInWithGoogle, signInWithMagicLink, isSupabaseConfigured } = useAuth();
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,6 +30,7 @@ export const RegistroPage: React.FC<RegistroPageProps> = ({ onNavigate }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,8 +67,26 @@ export const RegistroPage: React.FC<RegistroPageProps> = ({ onNavigate }) => {
     }
   };
 
+  const handleMagicLink = async () => {
+    if (!email || !email.includes('@')) {
+      toast.error('Escribe primero tu email arriba para poder enviarte el enlace.');
+      return;
+    }
+    setMagicLinkLoading(true);
+    try {
+      await signInWithMagicLink(email);
+    } finally {
+      setMagicLinkLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a12] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* Versión de build para diagnóstico de caché */}
+      <div className="absolute top-2 right-3 z-20 text-[10px] font-mono text-slate-600 select-none">
+        build-20260901-3
+      </div>
+      <SupabaseStatusBadge />
       {/* Ambient background glows */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[450px] bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-10 left-10 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -273,6 +293,42 @@ export const RegistroPage: React.FC<RegistroPageProps> = ({ onNavigate }) => {
               )}
             </button>
           </form>
+
+          {/* Magic Link (entrar sin contraseña) */}
+          <div className="mt-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-800" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-[#121222] px-3 text-slate-500 font-bold tracking-wider">
+                  o entra sin contraseña
+                </span>
+              </div>
+            </div>
+            <button
+              id="reg-magic-link-btn"
+              type="button"
+              onClick={handleMagicLink}
+              disabled={magicLinkLoading}
+              className="w-full mt-4 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-cyan-300 bg-[#0a0a14] border border-cyan-500/40 hover:bg-[#0e1424] hover:border-cyan-400/60 transition-all duration-200 cursor-pointer disabled:opacity-50"
+            >
+              {magicLinkLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Enviando enlace...</span>
+                </>
+              ) : (
+                <>
+                  <Mail className="w-4 h-4" />
+                  <span>Recibir enlace de acceso por email</span>
+                </>
+              )}
+            </button>
+            <p className="mt-2 text-[11px] text-slate-500 text-center">
+              Sin contraseñas: te mandamos un enlace a tu correo y entras con un clic.
+            </p>
+          </div>
 
           {/* Footer link to Login */}
           <div className="mt-6 text-center text-xs text-slate-400">

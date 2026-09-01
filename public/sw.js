@@ -1,9 +1,12 @@
 /**
  * ClipForge PWA Service Worker
  * Proporciona soporte offline para la shell de la aplicación, fuentes y activos estáticos.
+ *
+ * v2: Las navegaciones (HTML) usan SIEMPRE network-first (primero internet, caché solo
+ *     como respaldo offline). Así nunca se sirve una versión vieja de la app desde caché.
  */
 
-const CACHE_NAME = 'clipforge-cache-v1';
+const CACHE_NAME = 'clipforge-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -42,7 +45,26 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Stale-while-revalidate para recursos estáticos y assets locales
+  // Navegaciones (HTML): SIEMPRE network-first para evitar servir versiones viejas.
+  // La caché se usa solo como respaldo si no hay internet (modo offline).
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put('/index.html', responseToCache);
+          });
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match('/index.html').then((cached) => cached || caches.match(event.request));
+        })
+    );
+    return;
+  }
+
+  // Recursos estáticos (assets con hash): stale-while-revalidate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)
@@ -56,10 +78,6 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // Si no hay red y es navegación HTML, retornar index cached
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html') || cachedResponse;
-          }
           return cachedResponse;
         });
 

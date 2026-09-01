@@ -11,6 +11,7 @@ interface AuthContextType {
   isSupabaseConfigured: boolean;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string, nombre: string) => Promise<{ error: Error | null }>;
+  signInWithMagicLink: (email: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (data: Partial<Profile>) => Promise<void>;
@@ -171,6 +172,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signInWithMagicLink = async (email: string) => {
+    if (!isSupabaseConfigured) {
+      const error = new Error('La autenticación no está configurada. Contacta con el administrador.');
+      toast.error(error.message);
+      return { error };
+    }
+
+    if (!email || !email.includes('@')) {
+      const error = new Error('Introduce un email válido para recibir el enlace de acceso.');
+      toast.error(error.message);
+      return { error };
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+      if (error) throw error;
+      toast.success('📧 Te hemos enviado un enlace de acceso. Revisa tu correo y haz clic en él.');
+      return { error: null };
+    } catch (err: unknown) {
+      const error = err as Error;
+      toast.error(error.message || 'Error al enviar el enlace de acceso');
+      return { error };
+    }
+  };
+
   const signInWithGoogle = async () => {
     if (!isSupabaseConfigured) {
       toast.error('El acceso con Google no está configurado todavía. Usa el registro con email.');
@@ -218,6 +249,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isSupabaseConfigured,
         signInWithEmail,
         signUpWithEmail,
+        signInWithMagicLink,
         signInWithGoogle,
         signOut,
         updateProfile,

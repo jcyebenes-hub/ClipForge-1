@@ -19,12 +19,26 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
-  const { signInWithEmail, signInWithGoogle, isSupabaseConfigured } = useAuth();
+  const { signInWithEmail, signInWithMagicLink, signInWithGoogle, isSupabaseConfigured } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
+
+  const handleMagicLink = async () => {
+    if (!email || !email.includes('@')) {
+      toast.error('Escribe primero tu email arriba para poder enviarte el enlace.');
+      return;
+    }
+    setMagicLinkLoading(true);
+    try {
+      await signInWithMagicLink(email);
+    } finally {
+      setMagicLinkLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,6 +231,42 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
               )}
             </button>
           </form>
+
+          {/* Magic Link (entrar sin contraseña) */}
+          <div className="mt-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-800" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-[#121222] px-3 text-slate-500 font-bold tracking-wider">
+                  o entra sin contraseña
+                </span>
+              </div>
+            </div>
+            <button
+              id="magic-link-btn"
+              type="button"
+              onClick={handleMagicLink}
+              disabled={magicLinkLoading}
+              className="w-full mt-4 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-cyan-300 bg-[#0a0a14] border border-cyan-500/40 hover:bg-[#0e1424] hover:border-cyan-400/60 transition-all duration-200 cursor-pointer disabled:opacity-50"
+            >
+              {magicLinkLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Enviando enlace...</span>
+                </>
+              ) : (
+                <>
+                  <Mail className="w-4 h-4" />
+                  <span>Recibir enlace de acceso por email</span>
+                </>
+              )}
+            </button>
+            <p className="mt-2 text-[11px] text-slate-500 text-center">
+              Sin contraseñas: te mandamos un enlace a tu correo y entras con un clic.
+            </p>
+          </div>
 
           {/* Footer link to Register */}
           <div className="mt-6 text-center text-xs text-slate-400">

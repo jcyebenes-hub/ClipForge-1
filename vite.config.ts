@@ -780,9 +780,11 @@ export default defineConfig(() => {
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'require-corp',
       },
+      allowedHosts: true,
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
+
     preview: {
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',

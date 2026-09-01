@@ -1,0 +1,51 @@
+# ============================================================================
+# CLIPFORGE - Configuración de despliegue para Render (BluePrint)
+# ============================================================================
+# Cómo usarla:
+#   1. Ve a https://render.com  →  "New"  →  "Blueprint"
+#   2. Conecta tu repositorio GitHub ClipForge-1
+#   3. Render detecta este archivo y te pregunta SOLO 2 claves secretas
+#      (SUPABASE_SERVICE_ROLE_KEY y GROQ_API_KEY)
+#   4. "Apply" y ya está desplegado.
+# ============================================================================
+
+services:
+  - type: web
+    name: clipforge
+    runtime: node
+    plan: free
+    region: frankfurt  # cercano a España
+
+    # --include=dev es OBLIGATORIO: sin devDeps no compila (vite/tsx)
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+
+    envVars:
+      # --- Valores públicos (ya predefinidos, no preguntará por ellos) ---
+      # Versiones NEXT_PUBLIC_* → las lee el servidor (server.ts) en runtime
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        value: https://oxemnadaufcxvinevzws.supabase.co
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        value: sb_publishable_IXYFUzLHm1aLDMZjqUrXcw_agPpS5yd
+      # Versiones VITE_* → se incrustan en el bundle del navegador en BUILD.
+      # SIN ESTAS, la web desplegada no sabría conectar con Supabase.
+      - key: VITE_NEXT_PUBLIC_SUPABASE_URL
+        value: https://oxemnadaufcxvinevzws.supabase.co
+      - key: VITE_NEXT_PUBLIC_SUPABASE_ANON_KEY
+        value: sb_publishable_IXYFUzLHm1aLDMZjqUrXcw_agPpS5yd
+
+      # --- Claves secretas (Render te preguntará su valor al desplegar) ---
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+      # --- Opcionales (se pueden dejar vacías por ahora) ---
+      - key: YT_WORKER_URL
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false

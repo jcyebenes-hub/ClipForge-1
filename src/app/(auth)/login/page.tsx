@@ -61,6 +61,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
 
   return (
     <div className="min-h-screen bg-[#0a0a12] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* Versión de build para diagnóstico de caché */}
+      <div className="absolute top-2 right-3 z-20 text-[10px] font-mono text-slate-600 select-none">
+        build-20260901-2
+      </div>
       {/* Ambient background glows */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[450px] bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />

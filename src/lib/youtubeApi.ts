@@ -140,13 +140,14 @@ export interface PoToken {
   visitor_data: string;
 }
 
-// Cliente WEB de escritorio: con un poToken válido es el método documentado
-// (yt-dlp / BgUtils) para intentar saltar el LOGIN_REQUIRED de IPs de datacenter.
-const WEB_POT_CLIENTE = {
-  name: 'WEB',
-  ver: '2.20260902.01.00',
-  key: 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',
-};
+// Clientes "web" que aceptan un poToken (serviceIntegrityDimensions). Con un token
+// válido generado desde la MISMA IP, es el método documentado (yt-dlp/BgUtils) para
+// intentar saltar el LOGIN_REQUIRED de IPs de datacenter. Se prueban en orden.
+const WEB_POT_CLIENTES: ClienteYouTube[] = [
+  { name: 'WEB', ver: '2.20260902.01.00', key: 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8' },
+  { name: 'TVHTML5', ver: '7.20250101.14.00', key: 'AIzaSyDCU8hByM-X4KzVa9oG9ZZlGpPlfY0WuNw' },
+  { name: 'MWEB', ver: '2.20250310.01.00', key: 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8' },
+];
 
 // Caché en memoria: bgutil cachea el token ~6h; lo refrescamos cada 5h.
 let poCache: { data: PoToken; obtenido: number } | null = null;
@@ -172,8 +173,10 @@ export async function obtenerPoToken(): Promise<PoToken | null> {
     });
     if (!res.ok) return null;
     const d = await res.json();
-    const po_token = String(d?.po_token || d?.token || '');
-    const visitor_data = String(d?.visitor_data || d?.visit_identifier || '');
+    // bgutil (TS 1.3.x) devuelve { poToken, contentBinding, expiresAt };
+    // la variante Rust usa { po_token, visitor_data }. Aceptamos ambos esquemas.
+    const po_token = String(d?.poToken || d?.po_token || d?.token || '');
+    const visitor_data = String(d?.contentBinding || d?.visitor_data || d?.visit_identifier || '');
     if (!po_token) return null;
     const data = { po_token, visitor_data };
     poCache = { data, obtenido: ahora };
@@ -184,33 +187,35 @@ export async function obtenerPoToken(): Promise<PoToken | null> {
 }
 
 /**
- * Consulta youtubei/v1/player con el cliente WEB + token POT + visitorData.
+ * Prueba youtubei/v1/player con varios clientes "web" + token POT + visitorData.
  * Último recurso para vídeos bloqueados con "Sign in to confirm you're not a bot"
- * desde IPs de datacenter. No garantiza el bypass (ver doc de bgutil/yt-dlp).
+ * desde IPs de datacenter. Devuelve un intento por cliente (todo queda en el debug)
+ * y para en el primero que consiga pistas. No garantiza el bypass (ver bgutil/yt-dlp).
  */
 export async function consultarClienteConPoToken(
   videoId: string,
   po: PoToken
-): Promise<IntentoCliente> {
-  const body: any = {
-    context: {
-      client: {
-        clientName: WEB_POT_CLIENTE.name,
-        clientVersion: WEB_POT_CLIENTE.ver,
-        hl: 'es',
-        gl: 'ES',
-        ...(po.visitor_data ? { visitorData: po.visitor_data } : {}),
+): Promise<IntentoCliente[]> {
+  const resultados: IntentoCliente[] = [];
+  for (const c of WEB_POT_CLIENTES) {
+    const etiqueta = `${c.name}+POT`;
+    const body: any = {
+      context: {
+        client: {
+          clientName: c.name,
+          clientVersion: c.ver,
+          hl: 'es',
+          gl: 'ES',
+          ...(po.visitor_data ? { visitorData: po.visitor_data } : {}),
+        },
       },
-    },
-    videoId,
-    serviceIntegrityDimensions: { poToken: po.po_token },
-    contentCheckOk: true,
-    racyCheckOk: true,
-  };
-  try {
-    const res = await fetch(
-      `https://www.youtube.com/youtubei/v1/player?key=${WEB_POT_CLIENTE.key}`,
-      {
+      videoId,
+      serviceIntegrityDimensions: { poToken: po.po_token },
+      contentCheckOk: true,
+      racyCheckOk: true,
+    };
+    try {
+      const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${c.key}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -219,31 +224,34 @@ export async function consultarClienteConPoToken(
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(20000),
+      });
+      if (!res.ok) {
+        resultados.push({ cliente: etiqueta, httpOk: false, playable: false, numPistas: 0, pistas: [], razon: `HTTP ${res.status}` });
+        continue;
       }
-    );
-    if (!res.ok) {
-      return { cliente: 'WEB+POT', httpOk: false, playable: false, numPistas: 0, pistas: [], razon: `HTTP ${res.status}` };
+      const d = await res.json();
+      const vd = d?.videoDetails || {};
+      const tracks: CaptionTrackAndroid[] =
+        d?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+      const ps = d?.playabilityStatus || {};
+      resultados.push({
+        cliente: etiqueta,
+        httpOk: true,
+        statusApi: ps.status,
+        razon: ps.reason,
+        playable: ps.status === 'OK',
+        titulo: vd.title || '',
+        autor: vd.author || '',
+        duracion_seg: Number(vd.lengthSeconds) || 0,
+        numPistas: tracks.length,
+        pistas: tracks,
+      });
+      if (tracks.length > 0) break; // ya tenemos subtítulos, no hace falta probar más
+    } catch (err: any) {
+      resultados.push({ cliente: etiqueta, httpOk: false, playable: false, numPistas: 0, pistas: [], razon: String(err?.message || err).slice(0, 120) });
     }
-    const d = await res.json();
-    const vd = d?.videoDetails || {};
-    const tracks: CaptionTrackAndroid[] =
-      d?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-    const ps = d?.playabilityStatus || {};
-    return {
-      cliente: 'WEB+POT',
-      httpOk: true,
-      statusApi: ps.status,
-      razon: ps.reason,
-      playable: ps.status === 'OK',
-      titulo: vd.title || '',
-      autor: vd.author || '',
-      duracion_seg: Number(vd.lengthSeconds) || 0,
-      numPistas: tracks.length,
-      pistas: tracks,
-    };
-  } catch (err: any) {
-    return { cliente: 'WEB+POT', httpOk: false, playable: false, numPistas: 0, pistas: [], razon: String(err?.message || err).slice(0, 120) };
   }
+  return resultados;
 }
 
 /**
@@ -276,13 +284,17 @@ export async function probarClientes(
   if (opts?.pot && !conPistas && process.env.POT_PROVIDER_URL) {
     const po = await obtenerPoToken();
     if (po) {
-      const it = await consultarClienteConPoToken(videoId, po);
-      intentos.push(it);
-      if (it.numPistas > 0) conPistas = it;
-      if (!conMetadatos && (it.playable || it.titulo) && !it.razon) conMetadatos = it;
+      const potIntentos = await consultarClienteConPoToken(videoId, po);
+      intentos.push(...potIntentos);
+      const conPistasPot = potIntentos.find((i) => i.numPistas > 0);
+      if (conPistasPot) conPistas = conPistasPot;
+      if (!conMetadatos) {
+        const m = potIntentos.find((i) => (i.playable || i.titulo) && !i.razon);
+        if (m) conMetadatos = m;
+      }
     } else {
       intentos.push({
-        cliente: 'WEB+POT', httpOk: false, playable: false, numPistas: 0, pistas: [],
+        cliente: 'POT', httpOk: false, playable: false, numPistas: 0, pistas: [],
         razon: 'POT provider no disponible',
       });
     }

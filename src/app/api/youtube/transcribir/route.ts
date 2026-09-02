@@ -241,39 +241,58 @@ export async function POST(request: Request) {
       );
     }
 
-    // Capa 1: intento directo
-    const directo = await transcribirDirecto(url, videoId, debug);
-    if (directo.status === 200) return directo;
+    // YouTube bloquea de forma INTERMITENTE las IPs de servidor, así que reintentamos
+    // el ciclo (directo + Worker) unas veces antes de rendirnos. Solo se reintenta en
+    // códigos que pueden ser bloqueo transitorio, nunca en errores definitivos
+    // (BAD_URL, VIDEO_RESTRICTED, etc.).
+    const INTENTOS = 3;
+    const REINTENTABLES = new Set([
+      'YT_BOT_BLOCKED', 'NO_CAPTIONS', 'WORKER_UNREACHABLE', 'WORKER_ERROR',
+      'EMPTY', 'CAPTIONS_DOWNLOAD_FAILED',
+    ]);
+    let finalJson: any = null;
+    let finalStatus = 502;
 
-    // Capa 2: si falló y hay Worker configurado, delega
-    const directoJson = await directo.json().catch(() => ({}));
-    if (process.env.YT_CAPTIONS_WORKER_URL) {
-      const workerRes = await transcribirViaWorker(url);
-      if (workerRes.payload) {
-        return new Response(JSON.stringify(workerRes.payload), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      console.warn('[YT transcribir] Worker también falló:', workerRes.code, workerRes.error);
-      // Si el fallo directo fue por bloqueo de IP y el worker respondió, mostramos su error
-      if (directoJson.code === 'YT_BOT_BLOCKED' && workerRes.code && workerRes.code !== 'NO_WORKER') {
-        return new Response(
-          JSON.stringify({
+    for (let intento = 1; intento <= INTENTOS; intento++) {
+      // Capa 1: intento directo
+      const directo = await transcribirDirecto(url, videoId, debug);
+      if (directo.status === 200) return directo;
+      const directoJson = await directo.json().catch(() => ({}));
+      finalJson = directoJson;
+      finalStatus = directo.status;
+
+      // Capa 2: si falló y hay Worker configurado, delega
+      if (process.env.YT_CAPTIONS_WORKER_URL) {
+        const workerRes = await transcribirViaWorker(url);
+        if (workerRes.payload) {
+          return new Response(JSON.stringify(workerRes.payload), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        console.warn(`[YT transcribir] intento ${intento}: Worker también falló:`, workerRes.code, workerRes.error);
+        // Si el fallo directo fue por bloqueo de IP y el worker respondió, mostramos su error
+        if (directoJson.code === 'YT_BOT_BLOCKED' && workerRes.code && workerRes.code !== 'NO_WORKER') {
+          finalJson = {
             error: workerRes.error || directoJson.error,
             code: workerRes.code || 'WORKER_ERROR',
             video_id: videoId,
-          }),
-          { status: 422, headers: { 'Content-Type': 'application/json' } }
-        );
+          };
+          finalStatus = 422;
+        }
       }
+
+      const reintentable = REINTENTABLES.has(finalJson?.code);
+      if (!reintentable || intento === INTENTOS) break;
+      // Pausa creciente antes del siguiente intento (1.5s, 3s)
+      await new Promise((r) => setTimeout(r, 1500 * intento));
     }
 
     // `directo` ya tuvo su body consumido por directo.json(); no podemos devolverlo
     // tal cual (el adaptador de server.ts volvería a leerlo y lanzaría "body used").
-    // Reconstruimos la respuesta con el mismo status y el JSON ya leído.
-    return new Response(JSON.stringify(directoJson), {
-      status: directo.status,
+    // Reconstruimos la respuesta con el status y el JSON del último intento.
+    return new Response(JSON.stringify(finalJson), {
+      status: finalStatus,
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err: any) {

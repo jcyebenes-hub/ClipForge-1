@@ -10,7 +10,7 @@
 
 import { sanitizarTitulo } from '@/src/lib/sanitizer';
 import {
-  playerAndroid,
+  probarClientes,
   fetchVttCapitulos,
   parseVttATranscripcion,
 } from '@/src/lib/youtubeApi';
@@ -50,23 +50,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. Pedir info de reproducción + pistas de subtítulos por la API interna
-    let player;
-    try {
-      player = await playerAndroid(videoId);
-    } catch (err: any) {
-      console.warn('[YT transcribir] Error con la API de YouTube:', err?.message);
-      return new Response(
-        JSON.stringify({
-          error: `YouTube no respondió desde el servidor (${err?.message || 'error de red'}). Inténtalo de nuevo en unos segundos.`,
-          code: 'YT_API_UNAVAILABLE',
-          video_id: videoId,
-        }),
-        { status: 502, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
+    // 1. Pedir info de reproducción + pistas de subtítulos (probando clientes)
+    const player = await probarClientes(videoId);
     const tracks = player.captionTracks || [];
+    const debug = body?.debug === 1 || body?.debug === true;
 
     // 2. Elegir la mejor pista (español primero)
     let track: any = null;
@@ -83,6 +70,18 @@ export async function POST(request: Request) {
             'Este vídeo no tiene subtítulos disponibles (ni manuales ni automáticos). YouTube no genera subtítulos automáticos si el audio no tiene voz clara, el vídeo es musical o el creador los desactivó.',
           code: 'NO_CAPTIONS',
           video_id: videoId,
+          debug: debug
+            ? player.intentos.map((i) => ({
+                cliente: i.cliente,
+                httpOk: i.httpOk,
+                statusApi: i.statusApi || undefined,
+                razon: i.razon || undefined,
+                playable: i.playable,
+                numPistas: i.numPistas,
+                conTitulo: Boolean(i.titulo),
+                duracionApi: i.duracion_seg || 0,
+              }))
+            : undefined,
         }),
         { status: 422, headers: { 'Content-Type': 'application/json' } }
       );

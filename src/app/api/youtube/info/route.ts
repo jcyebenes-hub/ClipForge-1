@@ -7,7 +7,7 @@
  * Ya NO devuelve datos ficticios simulados.
  */
 
-import { playerAndroid } from '@/src/lib/youtubeApi';
+import { probarClientes } from '@/src/lib/youtubeApi';
 
 export interface YoutubeInfoResponse {
   titulo: string;
@@ -57,17 +57,17 @@ export async function fetchYoutubeInfo(url: string): Promise<YoutubeInfoResponse
     return cacheado.info;
   }
 
-  // 1. API interna (ANDROID) → título/autor/duración de una sola llamada
+  // 1. API interna (varios clientes) → título/autor/duración
   let titulo = '';
   let autor = '';
   let duracion = 0;
   try {
-    const p = await playerAndroid(videoId);
+    const p = await probarClientes(videoId);
     titulo = p.titulo;
     autor = p.autor;
     duracion = p.duracion_seg;
   } catch (err) {
-    console.warn('[YT info] API ANDROID no disponible, uso fallback oEmbed:', (err as Error)?.message);
+    console.warn('[YT info] API interna no disponible, uso fallback oEmbed:', (err as Error)?.message);
   }
 
   // 2. Fallback: oEmbed + página del vídeo

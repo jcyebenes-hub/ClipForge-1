@@ -2,15 +2,11 @@
  * Acceso a YouTube SIN depender de la página web (que desde IPs de servidor/datacenter
  * sale bloqueada o con muro de consentimiento).
  *
- * Usa el endpoint interno youtubei/v1/player con el cliente ANDROID (clave pública que
- * viaja en la app oficial de YouTube para Android) y descarga los subtítulos en VTT,
- * que incluyen marcas de tiempo a nivel de palabra en los subtítulos automáticos (ASR).
+ * Usa el endpoint interno youtubei/v1/player probando varios "clientes" oficiales
+ * (ANDROID, IOS, MWEB, TV…) porque YouTube aplica respuestas reducidas por IP:
+ * si un cliente devuelve respuesta sin subtítulos o sin formatos, probamos el siguiente.
+ * Los subtítulos se descargan en VTT, que en los automáticos (ASR) trae marcas por palabra.
  */
-
-const UA =
-  'com.google.android.youtube/20.10.35 (Linux; U; Android 12; es_ES) gzip';
-
-const ANDROID_KEY = 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w';
 
 export interface CaptionTrackAndroid {
   languageCode: string;
@@ -19,53 +15,151 @@ export interface CaptionTrackAndroid {
   name?: { simpleText?: string };
 }
 
-export interface PlayerAndroidResult {
-  videoId: string;
+export interface ClienteYouTube {
+  name: string;
+  ver: string;
+  key: string;
+}
+
+export const CLIENTES_YOUTUBE: ClienteYouTube[] = [
+  { name: 'ANDROID', ver: '20.10.35', key: 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w' },
+  { name: 'ANDROID', ver: '19.09.37', key: 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w' },
+  { name: 'IOS', ver: '19.45.4', key: 'AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc' },
+  { name: 'MWEB', ver: '2.20250310.01.00', key: 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8' },
+  { name: 'TVHTML5', ver: '7.20250101.14.00', key: 'AIzaSyDCU8hByM-X4KzVa9oG9ZZlGpPlfY0WuNw' },
+];
+
+export interface IntentoCliente {
+  cliente: string;
+  httpOk: boolean;
+  statusApi?: string;
+  razon?: string;
+  playable: boolean;
+  titulo?: string;
+  autor?: string;
+  duracion_seg?: number;
+  numPistas: number;
+  pistas: CaptionTrackAndroid[];
+}
+
+export interface PlayerResultado {
+  clienteUsado: string;
   titulo: string;
   autor: string;
   duracion_seg: number;
-  playable: boolean;
   captionTracks: CaptionTrackAndroid[];
+  intentos: IntentoCliente[];
 }
 
-export async function playerAndroid(videoId: string): Promise<PlayerAndroidResult> {
+const UA_BASE =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+function userAgentPara(cliente: ClienteYouTube): string {
+  if (cliente.name === 'ANDROID') {
+    return `com.google.android.youtube/${cliente.ver} (Linux; U; Android 12; es_ES) gzip`;
+  }
+  if (cliente.name === 'IOS') {
+    return `com.google.ios.youtube/${cliente.ver} (iPhone14,3; U; CPU iOS 17_2 like Mac OS X;)`;
+  }
+  return UA_BASE;
+}
+
+async function consultarCliente(videoId: string, cliente: ClienteYouTube): Promise<IntentoCliente> {
   const body = {
     context: {
-      client: { clientName: 'ANDROID', clientVersion: '20.10.35', hl: 'es', gl: 'ES' },
+      client: {
+        clientName: cliente.name,
+        clientVersion: cliente.ver,
+        hl: 'es',
+        gl: 'ES',
+        ...(cliente.name === 'IOS' ? { deviceMake: 'Apple', deviceModel: 'iPhone14,3' } : {}),
+      },
     },
     videoId,
     contentCheckOk: true,
     racyCheckOk: true,
   };
 
-  const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${ANDROID_KEY}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': UA,
-      'Accept-Language': 'es-ES,es;q=0.9',
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(20000),
-  });
+  try {
+    const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${cliente.key}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': userAgentPara(cliente),
+        'Accept-Language': 'es-ES,es;q=0.9',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20000),
+    });
 
-  if (!res.ok) {
-    throw new Error(`YouTube API devolvió ${res.status}`);
+    if (!res.ok) {
+      return {
+        cliente: cliente.name,
+        httpOk: false,
+        playable: false,
+        numPistas: 0,
+        pistas: [],
+        razon: `HTTP ${res.status}`,
+      };
+    }
+
+    const d = await res.json();
+    const vd = d?.videoDetails || {};
+    const tracks: CaptionTrackAndroid[] =
+      d?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+    const ps = d?.playabilityStatus || {};
+
+    return {
+      cliente: cliente.name,
+      httpOk: true,
+      statusApi: ps.status,
+      razon: ps.reason,
+      playable: ps.status === 'OK',
+      titulo: vd.title || '',
+      autor: vd.author || '',
+      duracion_seg: Number(vd.lengthSeconds) || 0,
+      numPistas: tracks.length,
+      pistas: tracks,
+    };
+  } catch (err: any) {
+    return {
+      cliente: cliente.name,
+      httpOk: false,
+      playable: false,
+      numPistas: 0,
+      pistas: [],
+      razon: String(err?.message || err).slice(0, 120),
+    };
+  }
+}
+
+/**
+ * Prueba los clientes en orden y devuelve el mejor resultado:
+ *  - preferimos el primero con pistas de subtítulos
+ *  - si ninguno trae pistas, el primero reproducible (para metadatos)
+ */
+export async function probarClientes(videoId: string): Promise<PlayerResultado> {
+  const intentos: IntentoCliente[] = [];
+  let conPistas: IntentoCliente | null = null;
+  let conMetadatos: IntentoCliente | null = null;
+
+  for (const cliente of CLIENTES_YOUTUBE) {
+    const it = await consultarCliente(videoId, cliente);
+    intentos.push(it);
+    if (it.numPistas > 0 && !conPistas) conPistas = it;
+    if (!conMetadatos && (it.playable || it.titulo) && !it.razon) conMetadatos = it;
+    if (conPistas && conMetadatos) break; // suficiente
   }
 
-  const d = await res.json();
-  const vd = d?.videoDetails || {};
-  const tracks: CaptionTrackAndroid[] =
-    d?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-  const playable = d?.playabilityStatus?.status === 'OK';
+  const mejor = conPistas || conMetadatos || intentos.find((i) => i.titulo) || intentos[0];
 
   return {
-    videoId,
-    titulo: vd.title || '',
-    autor: vd.author || '',
-    duracion_seg: Number(vd.lengthSeconds) || 0,
-    playable,
-    captionTracks: tracks,
+    clienteUsado: mejor?.cliente || '—',
+    titulo: mejor?.titulo || '',
+    autor: mejor?.autor || '',
+    duracion_seg: mejor?.duracion_seg || 0,
+    captionTracks: mejor?.pistas || [],
+    intentos,
   };
 }
 
@@ -78,8 +172,8 @@ export async function fetchVttCapitulos(baseUrl: string): Promise<string> {
     base = base.replace('fmt=vtt', '?fmt=vtt');
   }
   const res = await fetch(base, {
-    headers: { 'User-Agent': UA, 'Accept-Language': 'es-ES,es;q=0.9' },
-    signal: AbortSignal.timeout(20000),
+    headers: { 'User-Agent': UA_BASE, 'Accept-Language': 'es-ES,es;q=0.9' },
+    signal: AbortSignal.timeout(25000),
   });
   if (!res.ok) throw new Error(`YouTube subtítulos devolvió ${res.status}`);
   return res.text();
@@ -104,8 +198,7 @@ function aSegundos(hh: string, mm: string, ss: string, ms: string): number {
 
 /**
  * Convierte un VTT de YouTube (con marcas por palabra o solo texto plano) en
- * segmentos con palabras. Para ASR usa las marcas individuales; para subtítulos
- * manuales reparte el tiempo de cada cue uniformemente entre sus palabras.
+ * segmentos con palabras.
  */
 export function parseVttATranscripcion(vtt: string, idioma: string) {
   // ── Vía 1: subtítulos automáticos con marcas por palabra ──
@@ -124,15 +217,8 @@ export function parseVttATranscripcion(vtt: string, idioma: string) {
     const segmentos: SegmentoConstruido[] = [];
     const palabrasFinales: Array<{ word: string; start: number; end: number }> = [];
 
-    // La primera palabra del vídeo suele ir sin marca propia: se le asigna el
-    // instante del primer marcador menos un pequeño margen.
-    const primerT = palabrasMarcadas[0].t;
-    if (primerT > 0.3) {
-      palabrasMarcadas.unshift({ t: Math.max(0, primerT - 0.2), w: '' }); // marcador temporal (se filtra)
-    }
-
     for (let i = 0; i < palabrasMarcadas.length; i += PALABRAS_POR_SEGMENTO) {
-      const grupo = palabrasMarcadas.slice(i, i + PALABRAS_POR_SEGMENTO).filter((p) => p.w);
+      const grupo = palabrasMarcadas.slice(i, i + PALABRAS_POR_SEGMENTO);
       if (grupo.length === 0) continue;
       const start = grupo[0].t;
       const endRaw = grupo[grupo.length - 1].t;
@@ -151,7 +237,13 @@ export function parseVttATranscripcion(vtt: string, idioma: string) {
         wTime += wDur;
       }
       palabrasFinales.push(...palabrasSeg);
-      segmentos.push({ id: segmentos.length, start: Number(start.toFixed(3)), end: Number(end.toFixed(3)), text: texto, words: palabrasSeg });
+      segmentos.push({
+        id: segmentos.length,
+        start: Number(start.toFixed(3)),
+        end: Number(end.toFixed(3)),
+        text: texto,
+        words: palabrasSeg,
+      });
     }
 
     return { segmentos, palabras: palabrasFinales, metodo: 'asr-marcas' };
@@ -159,7 +251,8 @@ export function parseVttATranscripcion(vtt: string, idioma: string) {
 
   // ── Vía 2: subtítulos manuales / planos: bloques cue ──
   const cues: Array<{ start: number; end: number; text: string }> = [];
-  const bloqueRe = /(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s+-->\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})[^\n]*\n([\s\S]*?)(?=\n\n|$)/g;
+  const bloqueRe =
+    /(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s+-->\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})[^\n]*\n([\s\S]*?)(?=\n\n|$)/g;
   let bm: RegExpExecArray | null;
   while ((bm = bloqueRe.exec(vtt)) !== null) {
     const start = aSegundos(bm[1], bm[2], bm[3], bm[4]);
@@ -177,7 +270,6 @@ export function parseVttATranscripcion(vtt: string, idioma: string) {
   const palabrasFinales: Array<{ word: string; start: number; end: number }> = [];
   let anteriorTexto = '';
   for (const cue of cues) {
-    // Saltar repeticiones acumuladas idénticas a la anterior
     if (cue.text === anteriorTexto) continue;
     anteriorTexto = cue.text;
     const palabras = cue.text.split(/\s+/).filter(Boolean);

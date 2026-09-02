@@ -114,8 +114,9 @@ async function transcribirViaWorker(url: string): Promise<{ payload?: any; error
 
 /** Intento directo (sin worker) */
 async function transcribirDirecto(url: string, videoId: string, debug: boolean): Promise<Response> {
-  // 1. Pedir info de reproducción + pistas de subtítulos (probando clientes)
-  const player = await probarClientes(videoId);
+  // 1. Pedir info de reproducción + pistas de subtítulos (probando clientes).
+  // pot:true → si todo falla y hay provider POT, intenta WEB+POT (salta LOGIN_REQUIRED).
+  const player = await probarClientes(videoId, { pot: true });
   const tracks = player.captionTracks || [];
 
   // 2. Elegir la mejor pista (español primero)

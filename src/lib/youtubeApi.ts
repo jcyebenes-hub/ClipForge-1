@@ -133,12 +133,130 @@ async function consultarCliente(videoId: string, cliente: ClienteYouTube): Promi
   }
 }
 
+/** ── Estrategia con token POT (Proof-of-Origin) vía provider bgutil ── */
+
+export interface PoToken {
+  po_token: string;
+  visitor_data: string;
+}
+
+// Cliente WEB de escritorio: con un poToken válido es el método documentado
+// (yt-dlp / BgUtils) para intentar saltar el LOGIN_REQUIRED de IPs de datacenter.
+const WEB_POT_CLIENTE = {
+  name: 'WEB',
+  ver: '2.20260902.01.00',
+  key: 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',
+};
+
+// Caché en memoria: bgutil cachea el token ~6h; lo refrescamos cada 5h.
+let poCache: { data: PoToken; obtenido: number } | null = null;
+const PO_TTL_MS = 5 * 60 * 60 * 1000;
+
+/**
+ * Pide un token POT al provider externo (bgutil) configurado en POT_PROVIDER_URL.
+ * El provider genera el token ejecutando BotGuard. Devuelve null si no está
+ * configurado o si falla (el flujo sigue entonces sin POT, como antes).
+ */
+export async function obtenerPoToken(): Promise<PoToken | null> {
+  const base = (process.env.POT_PROVIDER_URL || '').replace(/\/+$/, '');
+  if (!base) return null;
+  const ahora = Date.now();
+  if (poCache && ahora - poCache.obtenido < PO_TTL_MS) return poCache.data;
+  try {
+    const res = await fetch(`${base}/get_pot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+      // El provider puede estar frío (free tier): margen amplio.
+      signal: AbortSignal.timeout(50000),
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    const po_token = String(d?.po_token || d?.token || '');
+    const visitor_data = String(d?.visitor_data || d?.visit_identifier || '');
+    if (!po_token) return null;
+    const data = { po_token, visitor_data };
+    poCache = { data, obtenido: ahora };
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Consulta youtubei/v1/player con el cliente WEB + token POT + visitorData.
+ * Último recurso para vídeos bloqueados con "Sign in to confirm you're not a bot"
+ * desde IPs de datacenter. No garantiza el bypass (ver doc de bgutil/yt-dlp).
+ */
+export async function consultarClienteConPoToken(
+  videoId: string,
+  po: PoToken
+): Promise<IntentoCliente> {
+  const body: any = {
+    context: {
+      client: {
+        clientName: WEB_POT_CLIENTE.name,
+        clientVersion: WEB_POT_CLIENTE.ver,
+        hl: 'es',
+        gl: 'ES',
+        ...(po.visitor_data ? { visitorData: po.visitor_data } : {}),
+      },
+    },
+    videoId,
+    serviceIntegrityDimensions: { poToken: po.po_token },
+    contentCheckOk: true,
+    racyCheckOk: true,
+  };
+  try {
+    const res = await fetch(
+      `https://www.youtube.com/youtubei/v1/player?key=${WEB_POT_CLIENTE.key}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': UA_BASE,
+          'Accept-Language': 'es-ES,es;q=0.9',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(20000),
+      }
+    );
+    if (!res.ok) {
+      return { cliente: 'WEB+POT', httpOk: false, playable: false, numPistas: 0, pistas: [], razon: `HTTP ${res.status}` };
+    }
+    const d = await res.json();
+    const vd = d?.videoDetails || {};
+    const tracks: CaptionTrackAndroid[] =
+      d?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+    const ps = d?.playabilityStatus || {};
+    return {
+      cliente: 'WEB+POT',
+      httpOk: true,
+      statusApi: ps.status,
+      razon: ps.reason,
+      playable: ps.status === 'OK',
+      titulo: vd.title || '',
+      autor: vd.author || '',
+      duracion_seg: Number(vd.lengthSeconds) || 0,
+      numPistas: tracks.length,
+      pistas: tracks,
+    };
+  } catch (err: any) {
+    return { cliente: 'WEB+POT', httpOk: false, playable: false, numPistas: 0, pistas: [], razon: String(err?.message || err).slice(0, 120) };
+  }
+}
+
 /**
  * Prueba los clientes en orden y devuelve el mejor resultado:
  *  - preferimos el primero con pistas de subtítulos
  *  - si ninguno trae pistas, el primero reproducible (para metadatos)
+ * Con opts.pot=true (solo transcripción), si ningún cliente consigue pistas y hay
+ * un provider POT configurado, intenta WEB+POT como último recurso.
  */
-export async function probarClientes(videoId: string): Promise<PlayerResultado> {
+export async function probarClientes(
+  videoId: string,
+  opts?: { pot?: boolean }
+): Promise<PlayerResultado> {
   const intentos: IntentoCliente[] = [];
   let conPistas: IntentoCliente | null = null;
   let conMetadatos: IntentoCliente | null = null;
@@ -149,6 +267,25 @@ export async function probarClientes(videoId: string): Promise<PlayerResultado> 
     if (it.numPistas > 0 && !conPistas) conPistas = it;
     if (!conMetadatos && (it.playable || it.titulo) && !it.razon) conMetadatos = it;
     if (conPistas && conMetadatos) break; // suficiente
+  }
+
+  // ── Último recurso: token POT (Proof-of-Origin) vía provider bgutil ──
+  // Solo si ningún cliente consiguió subtítulos, el caller lo pide y hay provider.
+  // Método documentado (yt-dlp/BgUtils) para saltar el LOGIN_REQUIRED
+  // ("Sign in to confirm you're not a bot") que YouTube aplica a IPs de datacenter.
+  if (opts?.pot && !conPistas && process.env.POT_PROVIDER_URL) {
+    const po = await obtenerPoToken();
+    if (po) {
+      const it = await consultarClienteConPoToken(videoId, po);
+      intentos.push(it);
+      if (it.numPistas > 0) conPistas = it;
+      if (!conMetadatos && (it.playable || it.titulo) && !it.razon) conMetadatos = it;
+    } else {
+      intentos.push({
+        cliente: 'WEB+POT', httpOk: false, playable: false, numPistas: 0, pistas: [],
+        razon: 'POT provider no disponible',
+      });
+    }
   }
 
   const mejor = conPistas || conMetadatos || intentos.find((i) => i.titulo) || intentos[0];

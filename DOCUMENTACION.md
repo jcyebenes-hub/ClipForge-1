@@ -10,7 +10,7 @@ El ecosistema de ClipForge está estructurado en 4 capas desacopladas y de alta 
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                          CLIPFORGE FRONTEND (React 18 + Vite / Tailwind)│
+│                          CLIPFORGE FRONTEND (React 19 + Vite / Tailwind)│
 │  - Editor de Clips Multiformato (Reencuadre 9:16, Split 50/50, Blur)   │
 │  - Renderizado y Animación de Subtítulos (Karaoke, Hormozi, MrBeast)   │
 │  - Pipeline WASM FFmpeg en el Navegador (Procesamiento Gratuito)       │
@@ -20,7 +20,7 @@ El ecosistema de ClipForge está estructurado en 4 capas desacopladas y de alta 
                     │ Peticiones API                 │ Persistencia & Auth
                     ▼                                ▼
 ┌──────────────────────────────────────┐   ┌─────────────────────────────┐
-│       NEXT.JS / VITE API ROUTES      │   │     SUPABASE (Backend BaaS) │
+│     EXPRESS (server.ts) → API ROUTES   │   │     SUPABASE (Backend BaaS) │
 │  - /api/transcribir (Groq Whisper v3)│   │  - PostgreSQL + RLS         │
 │  - /api/analizar (Llama 3.3 70B)     │   │  - Supabase Auth (OAuth/JWT)│
 │  - /api/traducir (Multiidioma)       │   │  - Supabase Storage         │
@@ -35,6 +35,35 @@ El ecosistema de ClipForge está estructurado en 4 capas desacopladas y de alta 
 │  - Extracción de audio/vídeo y metadatos sin saturar la app principal  │
 └────────────────────────────────────────────────────────────────────────┘
 ```
+
+### 1.1 Desarrollo local
+
+```bash
+npm install     # instala dependencias (Node >= 20, ver .nvmrc)
+npm run dev     # arranca frontend + API real
+```
+
+`npm run dev` ejecuta `scripts/dev.mjs`, que levanta **dos procesos**:
+
+| Proceso | Puerto | Qué hace |
+|---|---|---|
+| `tsx server.ts` | `3100` (variable `API_PORT`) | Express con las 17 rutas `/api/*` **reales**, el mismo código que corre en Render |
+| `vite` | `3000` | Frontend con HMR; delega `/api/*` y `/health` al puerto 3100 por proxy |
+
+El navegador solo habla con el puerto 3000. Si uno de los dos procesos muere, se
+detiene el otro.
+
+> **Historial (2026-09-02):** antes `vite.config.ts` llevaba un plugin de ~780
+> líneas que simulaba 6 de esas 17 rutas. En desarrollo, `/api/youtube/info`
+> devolvía un título inventado (*"Cómo facturar $10K/mes…"*) y las 11 rutas
+> restantes caían al fallback SPA devolviendo HTML con código 200. Eso ya no
+> ocurre: desarrollo y producción ejecutan exactamente el mismo código.
+> Consecuencia: si falta `GROQ_API_KEY`, `YT_WORKER_URL` o la configuración de
+> Supabase en tu `.env.local`, la API devolverá su error real en vez de
+> inventarse una respuesta.
+
+Para producción local: `npm run build` genera `dist/` y `npm start` sirve ese
+`dist/` más la API en el puerto `$PORT`.
 
 ---
 

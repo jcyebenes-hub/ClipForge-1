@@ -1,6 +1,11 @@
 /**
- * Sistema de Analítica Ligero y Gratuito para ClipForge
- * Registra eventos en Supabase (tabla 'eventos') con fallback a almacenamiento local (localStorage).
+ * Sistema de Analítica REAL para ClipForge.
+ * Registra eventos en Supabase (tabla 'eventos') con respaldo en localStorage, y
+ * el resumen de métricas se calcula SOLO con datos reales:
+ *   - Visitas / clicks / errores  → eventos reales de trackEvent().
+ *   - Proyectos / clips exportados → tablas 'proyectos' y 'clips' de Supabase
+ *     para el usuario autenticado.
+ * NO se inventa ningún número: sin datos, todo queda en 0 y series vacías.
  */
 
 import { supabase } from './supabase/client';
@@ -58,7 +63,8 @@ export async function trackEvent(
     console.warn('Analytics local storage note:', e);
   }
 
-  // 2. Intentar registrar en Supabase (no bloqueante)
+  // 2. Intentar registrar en Supabase (no bloqueante; falla en silencio si la
+  //    tabla 'eventos' aún no existe -> ejecutar la migración correspondiente).
   try {
     (supabase.from('eventos') as any)
       .insert({
@@ -71,7 +77,7 @@ export async function trackEvent(
       .then(() => {})
       .catch(() => {});
   } catch {
-    // Si la tabla no existe o no hay red, silencioso
+    // silencioso
   }
 }
 
@@ -86,7 +92,7 @@ export const trackError = (error: string, origen: string) =>
   trackEvent('error_sistema', { error, origen });
 
 /**
- * Obtiene métricas y series temporales para el dashboard de estadísticas admin.
+ * Obtiene métricas y series temporales para el dashboard de estadísticas.
  */
 export interface MetricasResumen {
   totalVisitas: number;
@@ -101,39 +107,79 @@ export interface MetricasResumen {
   ultimosEventos: EventoData[];
 }
 
-export function getAnalyticsSummary(): MetricasResumen {
-  let eventos: EventoData[] = [];
+function leerEventosLocales(): EventoData[] {
   try {
     if (typeof window !== 'undefined') {
       const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (raw) eventos = JSON.parse(raw);
+      if (raw) return JSON.parse(raw);
     }
   } catch {
-    eventos = [];
+    return [];
   }
+  return [];
+}
 
-  // Si no hay suficientes eventos reales en local, proporcionar métricas base iniciales
-  const totalVisitas = Math.max(eventos.filter((e) => e.tipo === 'visita_landing').length, 48);
-  const totalClicksEmpezar = Math.max(eventos.filter((e) => e.tipo === 'click_empezar_gratis').length, 29);
-  const totalProyectos = Math.max(eventos.filter((e) => e.tipo === 'proyecto_creado').length, 18);
-  const totalClipsExportados = Math.max(eventos.filter((e) => e.tipo === 'clip_exportado').length, 14);
+const claveDia = (d: Date) => d.toISOString().slice(0, 10);
+
+function sumarDia(mapa: Map<string, number>, iso?: string | null) {
+  if (!iso) return;
+  const k = String(iso).slice(0, 10);
+  mapa.set(k, (mapa.get(k) || 0) + 1);
+}
+
+/**
+ * MÉTRICAS 100% REALES.
+ * Async porque consulta Supabase (proyectos/clips del usuario autenticado).
+ * Sin sesión o sin datos, devuelve ceros y series vacías: nada inventado.
+ */
+export async function getAnalyticsSummary(): Promise<MetricasResumen> {
+  const eventos = leerEventosLocales();
+
+  const totalVisitas = eventos.filter((e) => e.tipo === 'visita_landing').length;
+  const totalClicksEmpezar = eventos.filter((e) => e.tipo === 'click_empezar_gratis').length;
   const totalErrores = eventos.filter((e) => e.tipo === 'error_sistema').length;
+
+  let totalProyectos = 0;
+  let totalClipsExportados = 0;
+  const proyectosPorDia = new Map<string, number>();
+  const exportPorDia = new Map<string, number>();
+
+  try {
+    const { data: sesion } = await supabase.auth.getSession();
+    const uid = sesion?.session?.user?.id || null;
+
+    if (uid) {
+      // Proyectos reales del usuario (RLS: solo los suyos).
+      const { data: pros } = await supabase.from('proyectos').select('creado_en').eq('user_id', uid);
+      totalProyectos = pros?.length || 0;
+      (pros || []).forEach((p) => sumarDia(proyectosPorDia, p.creado_en));
+
+      // Clips reales en estado final, del usuario (vía proyecto).
+      const { data: clips } = await supabase
+        .from('clips')
+        .select('estado, creado_en, proyecto:proyectos(user_id)')
+        .in('estado', ['renderizado', 'publicado', 'exportado']);
+      const mios = (clips || []).filter((c: any) => c.proyecto?.user_id === uid);
+      totalClipsExportados = mios.length;
+      mios.forEach((c: any) => sumarDia(exportPorDia, c.creado_en));
+    }
+  } catch {
+    // Sin sesión / sin acceso: proyectos y clips quedan en 0.
+  }
 
   const tasaConversionCTR = totalVisitas > 0 ? Math.round((totalClicksEmpezar / totalVisitas) * 100) : 0;
   const tasaExportacion = totalProyectos > 0 ? Math.round((totalClipsExportados / totalProyectos) * 100) : 0;
 
-  // Generar 7 días de datos para gráficas
-  const hoy = new Date();
+  // Serie real de los últimos 7 días.
   const actividadPorDia = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date(hoy);
+    const d = new Date();
     d.setDate(d.getDate() - (6 - i));
-    const fechaStr = d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' });
-    const factor = (i + 1) / 7;
+    const key = claveDia(d);
     return {
-      fecha: fechaStr,
-      visitas: Math.round(5 + factor * 8 + Math.floor(Math.random() * 3)),
-      proyectos: Math.round(2 + factor * 3 + Math.floor(Math.random() * 2)),
-      exportaciones: Math.round(1 + factor * 2 + Math.floor(Math.random() * 2)),
+      fecha: d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }),
+      visitas: eventos.filter((e) => e.tipo === 'visita_landing' && (e.timestamp || '').slice(0, 10) === key).length,
+      proyectos: proyectosPorDia.get(key) || 0,
+      exportaciones: exportPorDia.get(key) || 0,
     };
   });
 
@@ -142,7 +188,7 @@ export function getAnalyticsSummary(): MetricasResumen {
     { name: 'Clicks Empezar', value: totalClicksEmpezar, color: '#06b6d4' },
     { name: 'Proyectos Creados', value: totalProyectos, color: '#ec4899' },
     { name: 'Clips Exportados', value: totalClipsExportados, color: '#10b981' },
-    { name: 'Errores', value: Math.max(totalErrores, 1), color: '#ef4444' },
+    { name: 'Errores', value: totalErrores, color: '#ef4444' },
   ];
 
   return {

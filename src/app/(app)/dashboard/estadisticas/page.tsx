@@ -38,10 +38,10 @@ export const EstadisticasPage: React.FC<EstadisticasPageProps> = ({ onNavigate }
   const [data, setData] = useState<MetricasResumen | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadMetrics = () => {
+  const loadMetrics = async () => {
     setIsRefreshing(true);
     try {
-      const metrics = getAnalyticsSummary();
+      const metrics = await getAnalyticsSummary();
       setData(metrics);
     } catch (err: any) {
       toast.error('Error al cargar métricas de analítica');
@@ -106,9 +106,9 @@ export const EstadisticasPage: React.FC<EstadisticasPageProps> = ({ onNavigate }
             </div>
           </div>
           <p className="text-2xl font-bold text-white mt-2 font-['Plus_Jakarta_Sans',sans-serif]">{data.totalVisitas}</p>
-          <div className="flex items-center gap-1 mt-1 text-[11px] text-emerald-400 font-semibold">
+          <div className="flex items-center gap-1 mt-1 text-[11px] text-slate-400 font-semibold">
             <TrendingUp className="w-3 h-3" />
-            <span>+18% esta semana</span>
+            <span>{data.actividadPorDia.reduce((a, d) => a + d.visitas, 0)} esta semana (real)</span>
           </div>
         </div>
 

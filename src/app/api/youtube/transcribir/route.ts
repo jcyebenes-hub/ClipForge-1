@@ -64,24 +64,52 @@ export async function POST(request: Request) {
     if (!track) track = tracks[0];
 
     if (!track) {
+      const bloqueadoPorYoutube =
+        player.intentos.length > 0 &&
+        player.intentos.every(
+          (i) =>
+            !i.titulo &&
+            (i.statusApi === 'LOGIN_REQUIRED' || i.statusApi === 'ERROR' || i.razon === 'HTTP 400' || i.razon === 'HTTP 403')
+        );
+
+      const debugPayload = debug
+        ? player.intentos.map((i) => ({
+            cliente: i.cliente,
+            httpOk: i.httpOk,
+            statusApi: i.statusApi || undefined,
+            razon: i.razon || undefined,
+            playable: i.playable,
+            numPistas: i.numPistas,
+            conTitulo: Boolean(i.titulo),
+            duracionApi: i.duracion_seg || 0,
+          }))
+        : undefined;
+
+      if (bloqueadoPorYoutube) {
+        return new Response(
+          JSON.stringify({
+            error:
+              'YouTube ha bloqueado el acceso desde este servidor (protección anti-bots para IPs de la nube). El vídeo SÍ tiene subtítulos, pero YouTube no permite leerlos desde aquí. Prueba el flujo "Subir archivo" o cambia el alojamiento del servidor.',
+            code: 'YT_BOT_BLOCKED',
+            video_id: videoId,
+            debug: debugPayload,
+          }),
+          { status: 422, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const restringido =
+        player.intentos.some((i) => i.statusApi === 'UNPLAYABLE') ||
+        player.intentos.some((i) => i.statusApi === 'LOGIN_REQUIRED' && i.razon?.includes('edad'));
+
       return new Response(
         JSON.stringify({
-          error:
-            'Este vídeo no tiene subtítulos disponibles (ni manuales ni automáticos). YouTube no genera subtítulos automáticos si el audio no tiene voz clara, el vídeo es musical o el creador los desactivó.',
-          code: 'NO_CAPTIONS',
+          error: restringido
+            ? 'Este vídeo está restringido (privado, por edad o con límites de país) y no se puede transcribir.'
+            : 'Este vídeo no tiene subtítulos disponibles (ni manuales ni automáticos). YouTube no genera subtítulos automáticos si el audio no tiene voz clara, el vídeo es musical o el creador los desactivó.',
+          code: restringido ? 'VIDEO_RESTRICTED' : 'NO_CAPTIONS',
           video_id: videoId,
-          debug: debug
-            ? player.intentos.map((i) => ({
-                cliente: i.cliente,
-                httpOk: i.httpOk,
-                statusApi: i.statusApi || undefined,
-                razon: i.razon || undefined,
-                playable: i.playable,
-                numPistas: i.numPistas,
-                conTitulo: Boolean(i.titulo),
-                duracionApi: i.duracion_seg || 0,
-              }))
-            : undefined,
+          debug: debugPayload,
         }),
         { status: 422, headers: { 'Content-Type': 'application/json' } }
       );

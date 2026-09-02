@@ -24,9 +24,26 @@ const UA =
 
 export function extractYoutubeId(url: string): string | null {
   if (!url) return null;
-  const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|&v=)([^#&?]*).*/;
-  const match = url.match(regExp);
-  return match && match[2].length === 11 ? match[2] : null;
+  const raw = String(url).trim();
+  const idOk = (s: string | null | undefined): string | null =>
+    s && /^[\w-]{11}$/.test(s) ? s : null;
+  try {
+    const u = new URL(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw);
+    const host = u.hostname.toLowerCase().replace(/^www\./, '').replace(/^m\./, '');
+    if (host === 'youtu.be') return idOk(u.pathname.slice(1).split('/')[0]);
+    if (host === 'youtube.com' || host === 'youtube-nocookie.com' || host.endsWith('.youtube.com')) {
+      const v = idOk(u.searchParams.get('v'));
+      if (v) return v;
+      const parts = u.pathname.split('/').filter(Boolean);
+      const known = ['shorts', 'live', 'embed', 'v'];
+      if (parts.length >= 2 && known.includes(parts[0])) return idOk(parts[1]);
+      return idOk(parts[parts.length - 1]);
+    }
+    return null;
+  } catch {
+    const m = raw.match(/[\w-]{11}/);
+    return m ? m[0] : null;
+  }
 }
 
 function extraerNumero(html: string, clave: string, maxLen = 60): number | null {

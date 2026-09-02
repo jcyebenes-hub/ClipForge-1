@@ -50,16 +50,24 @@ function json(obj, status = 200) {
 
 export function extractId(u) {
   if (!u) return null;
+  const raw = String(u).trim();
+  const idOk = (s) => (s && /^[\w-]{11}$/.test(s) ? s : null);
   try {
-    const x = new URL(u);
-    if (x.hostname.includes('youtu.be')) return x.pathname.slice(1).split('/')[0] || null;
-    const v = x.searchParams.get('v');
-    if (v) return v;
-    const parts = x.pathname.split('/').filter(Boolean);
-    return parts[parts.length - 1] || null;
+    const x = new URL(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw);
+    const host = x.hostname.toLowerCase().replace(/^www\./, '').replace(/^m\./, '');
+    if (host === 'youtu.be') return idOk(x.pathname.slice(1).split('/')[0]);
+    if (host === 'youtube.com' || host === 'youtube-nocookie.com' || host.endsWith('.youtube.com')) {
+      const v = idOk(x.searchParams.get('v'));
+      if (v) return v;
+      const parts = x.pathname.split('/').filter(Boolean);
+      const known = ['shorts', 'live', 'embed', 'v'];
+      if (parts.length >= 2 && known.includes(parts[0])) return idOk(parts[1]);
+      return idOk(parts[parts.length - 1]);
+    }
+    return null;
   } catch {
-    const m = String(u).match(/([\w-]{11})/);
-    return m ? m[1] : null;
+    const m = raw.match(/[\w-]{11}/);
+    return m ? m[0] : null;
   }
 }
 

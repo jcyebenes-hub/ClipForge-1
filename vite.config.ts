@@ -67,4 +67,35 @@ export default defineConfig({
   preview: {
     headers: crossOriginIsolation,
   },
+  build: {
+    // El objetivo es que NINGÚN chunk supere los 500 kB. Con el lazy loading de
+    // las páginas + estos vendors el mayor queda por debajo.
+    chunkSizeWarningLimit: 500,
+    rollupOptions: {
+      output: {
+        /**
+         * Separa en chunks propios las dependencias que se necesitan SIEMPRE,
+         * para que el navegador las cachee aparte del código de la app.
+         *
+         * Solo se agrupan librerías del grafo inicial. NO se agrupan a propósito:
+         *   - lucide-react: Rollup ya parte cada icono en su propio chunk y
+         *     juntarlos obligaría a descargar iconos que no se usan.
+         *   - recharts, @mediapipe, @ffmpeg: solo los usan páginas con
+         *     React.lazy(), así que ya viajan en el chunk de su página y no se
+         *     descargan hasta que el usuario entra allí.
+         */
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('/@supabase/')) return 'vendor-supabase';
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/scheduler/')
+          ) {
+            return 'vendor-react';
+          }
+        },
+      },
+    },
+  },
 });

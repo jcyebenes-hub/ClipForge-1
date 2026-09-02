@@ -12,21 +12,28 @@ const PLACEHOLDER_URL = 'https://placeholder-project.supabase.co';
 const PLACEHOLDER_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder';
 
 export function getSupabaseEnv() {
-  const metaEnv = typeof import.meta !== 'undefined' && 'env' in import.meta 
-    ? (import.meta as unknown as { env: Record<string, string | undefined> }).env 
-    : undefined;
+  // ⚠️ IMPORTANTE: esta función se compila DISTINTO según el entorno:
+  //  - En el NAVEGADOR (build de Vite): `import.meta.env.VITE_*` se sustituye
+  //    por su valor literal en tiempo de build. NO se puede usar la comprobación
+  //    `'env' in import.meta` (solo funciona en dev) ni optional-chaining
+  //    sobre import.meta.env (Vite no lo reemplaza).
+  //  - En el SERVIDOR (Node / tsx): `import.meta.env` NO existe; se usa process.env.
 
-  const rawUrl =
-    (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SUPABASE_URL) ||
-    metaEnv?.NEXT_PUBLIC_SUPABASE_URL ||
-    metaEnv?.VITE_NEXT_PUBLIC_SUPABASE_URL ||
-    '';
+  const isServer = typeof document === 'undefined';
 
-  const rawAnonKey =
-    (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
-    metaEnv?.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    metaEnv?.VITE_NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    '';
+  let rawUrl = '';
+  let rawAnonKey = '';
+
+  if (isServer) {
+    // Entorno Node (server.ts, cron, etc.)
+    rawUrl = process.env?.NEXT_PUBLIC_SUPABASE_URL || '';
+    rawAnonKey = process.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  } else {
+    // Navegador: Vite reemplaza import.meta.env.VITE_* con el valor literal.
+    // (La rama no se ejecuta en Node, así que es seguro referenciar import.meta.env aquí.)
+    rawUrl = import.meta.env.VITE_NEXT_PUBLIC_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL || '';
+    rawAnonKey = import.meta.env.VITE_NEXT_PUBLIC_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  }
 
   const isConfigured = Boolean(
     rawUrl &&

@@ -5,21 +5,10 @@ const PLACEHOLDER_URL = 'https://placeholder-project.supabase.co';
 const PLACEHOLDER_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder';
 
 function getSupabaseEnv() {
-  const metaEnv = typeof import.meta !== 'undefined' && 'env' in import.meta 
-    ? (import.meta as unknown as { env: Record<string, string | undefined> }).env 
-    : undefined;
-
-  const rawUrl =
-    (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SUPABASE_URL) ||
-    metaEnv?.NEXT_PUBLIC_SUPABASE_URL ||
-    metaEnv?.VITE_NEXT_PUBLIC_SUPABASE_URL ||
-    '';
-
-  const rawAnonKey =
-    (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
-    metaEnv?.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    metaEnv?.VITE_NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    '';
+  // Este archivo se usa SOLO en servidor (Node): leemos de process.env.
+  // (La variante de navegador con import.meta.env.VITE_* vive en client.ts)
+  const rawUrl = process.env?.NEXT_PUBLIC_SUPABASE_URL || '';
+  const rawAnonKey = process.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
   const isConfigured = Boolean(
     rawUrl &&

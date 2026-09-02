@@ -1,41 +1,19 @@
 /**
  * API Route: /api/youtube/transcribir
- * Obtiene la transcripción REAL de un vídeo de YouTube a partir de sus
- * subtítulos (manuales o automáticos) usando el paquete 'youtube-transcript'
- * (Node puro, sin binarios externos ni workers).
+ * Obtiene la transcripción REAL de un vídeo de YouTube a partir de sus subtítulos
+ * (manuales o automáticos) usando la API interna de YouTube (cliente ANDROID) y
+ * descargando la pista en VTT con marcas de tiempo.
  *
- * Devuelve la misma estructura TranscriptionPayload que /api/transcribir
- * para que el resto del pipeline (ventanas, análisis viral, SRT…) funcione igual.
+ * NO usa la página web (bloqueada desde IPs de servidor) ni genera contenido simulado.
+ * Devuelve la misma estructura que /api/transcribir para que el pipeline siga igual.
  */
 
-import { YoutubeTranscript } from 'youtube-transcript';
 import { sanitizarTitulo } from '@/src/lib/sanitizer';
-
-interface CaptionEntry {
-  text: string;
-  duration: number; // ms
-  offset: number;   // ms
-  lang?: string;
-}
-
-export interface YoutubeTranscriptPayload {
-  task: string;
-  language: string;
-  duration: number;
-  text: string;
-  segments: Array<{
-    id: number;
-    start: number;
-    end: number;
-    text: string;
-    words?: Array<{ word: string; start: number; end: number }>;
-  }>;
-  words: Array<{ word: string; start: number; end: number }>;
-  provider: 'youtube-captions';
-  fuente: string;
-  url_youtube: string;
-  video_id?: string;
-}
+import {
+  playerAndroid,
+  fetchVttCapitulos,
+  parseVttATranscripcion,
+} from '@/src/lib/youtubeApi';
 
 export function extractYoutubeId(url: string): string | null {
   if (!url) return null;
@@ -44,16 +22,12 @@ export function extractYoutubeId(url: string): string | null {
   return match && match[2].length === 11 ? match[2] : null;
 }
 
-const IDIOMAS_PREFERIDOS = ['es', 'es-419', 'es-ES', 'es-US', 'es-MX', 'en', 'pt'];
+const ORDEN_IDIOMAS = ['es', 'es-419', 'es-ES', 'es-US', 'es-MX', 'en', 'pt', 'ca'];
 
-/** Normaliza el idioma corto de YouTube (p.ej. "es-419" -> "es") */
 function idiomaCorto(lang?: string): string {
   if (!lang) return 'es';
   const base = lang.split('-')[0].toLowerCase();
-  if (['es', 'en', 'pt', 'fr', 'it', 'de', 'ca', 'gl', 'eu', 'hi', 'ja', 'ko', 'zh'].includes(base)) {
-    return base;
-  }
-  return lang.toLowerCase();
+  return base;
 }
 
 export async function POST(request: Request) {
@@ -76,44 +50,37 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. Intentar obtener subtítulos en español y otros idiomas
-    let entries: CaptionEntry[] = [];
-    let langUsado = '';
-    let errUltimo = '';
-
-    for (const lang of IDIOMAS_PREFERIDOS) {
-      try {
-        const res = await YoutubeTranscript.fetchTranscript(videoId, { lang });
-        if (res && res.length > 0) {
-          entries = res as unknown as CaptionEntry[];
-          langUsado = lang;
-          break;
-        }
-      } catch (e: any) {
-        errUltimo = String(e?.message || e);
-      }
-    }
-
-    // 2. Último intento: transcripción por defecto (la que YouTube elija)
-    if (entries.length === 0) {
-      try {
-        const res = await YoutubeTranscript.fetchTranscript(videoId);
-        if (res && res.length > 0) {
-          entries = res as unknown as CaptionEntry[];
-          langUsado = entries[0]?.lang || '';
-        }
-      } catch (e: any) {
-        errUltimo = String(e?.message || e);
-      }
-    }
-
-    if (entries.length === 0) {
-      const motivo = errUltimo.includes('disabled') || errUltimo.toLowerCase().includes('unavailable')
-        ? 'Este vídeo no tiene subtítulos disponibles (ni manuales ni automáticos). YouTube no genera subtítulos automáticos si el audio no tiene voz clara o el creador los desactivó.'
-        : errUltimo.slice(0, 300);
+    // 1. Pedir info de reproducción + pistas de subtítulos por la API interna
+    let player;
+    try {
+      player = await playerAndroid(videoId);
+    } catch (err: any) {
+      console.warn('[YT transcribir] Error con la API de YouTube:', err?.message);
       return new Response(
         JSON.stringify({
-          error: `No se pudo obtener la transcripción de YouTube. ${motivo}`,
+          error: `YouTube no respondió desde el servidor (${err?.message || 'error de red'}). Inténtalo de nuevo en unos segundos.`,
+          code: 'YT_API_UNAVAILABLE',
+          video_id: videoId,
+        }),
+        { status: 502, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const tracks = player.captionTracks || [];
+
+    // 2. Elegir la mejor pista (español primero)
+    let track: any = null;
+    for (const lang of ORDEN_IDIOMAS) {
+      track = tracks.find((t: any) => t.languageCode === lang);
+      if (track) break;
+    }
+    if (!track) track = tracks[0];
+
+    if (!track) {
+      return new Response(
+        JSON.stringify({
+          error:
+            'Este vídeo no tiene subtítulos disponibles (ni manuales ni automáticos). YouTube no genera subtítulos automáticos si el audio no tiene voz clara, el vídeo es musical o el creador los desactivó.',
           code: 'NO_CAPTIONS',
           video_id: videoId,
         }),
@@ -121,56 +88,57 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Construir la estructura estándar de transcripción
-    const segments: YoutubeTranscriptPayload['segments'] = [];
-    const words: YoutubeTranscriptPayload['words'] = [];
-
-    entries.forEach((e, idx) => {
-      const texto = sanitizarTitulo(e.text || '', 600).trim();
-      if (!texto) return;
-      const start = Number(((e.offset || 0) / 1000).toFixed(3));
-      const end = Number((((e.offset || 0) + (e.duration || 3000)) / 1000).toFixed(3));
-
-      // Aproximar marcas por palabra repartiendo el tiempo uniformemente
-      const palabras = texto.split(/\s+/).filter(Boolean);
-      const wordSeg = end - start || 1;
-      const wordsSeg: Array<{ word: string; start: number; end: number }> = [];
-      let wTime = start;
-      for (const p of palabras) {
-        const wDur = wordSeg / Math.max(palabras.length, 1);
-        wordsSeg.push({
-          word: p,
-          start: Number(wTime.toFixed(3)),
-          end: Number((wTime + wDur * 0.95).toFixed(3)),
-        });
-        wTime += wDur;
-      }
-      words.push(...wordsSeg);
-
-      segments.push({ id: idx, start, end, text: texto, words: wordsSeg });
-    });
-
-    if (segments.length === 0) {
+    // 3. Descargar VTT
+    let vtt = '';
+    try {
+      vtt = await fetchVttCapitulos(track.baseUrl);
+    } catch (err: any) {
+      console.warn('[YT transcribir] Error descargando subtítulos:', err?.message);
       return new Response(
-        JSON.stringify({ error: 'La transcripción obtenida está vacía.', code: 'EMPTY' }),
+        JSON.stringify({
+          error: 'No se pudo descargar la pista de subtítulos del vídeo.',
+          code: 'CAPTIONS_DOWNLOAD_FAILED',
+          video_id: videoId,
+        }),
+        { status: 502, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 4. Parsear a segmentos con palabras
+    const { segmentos, palabras } = parseVttATranscripcion(vtt, track.languageCode || 'es');
+
+    if (segmentos.length === 0) {
+      return new Response(
+        JSON.stringify({
+          error: 'La pista de subtítulos del vídeo está vacía.',
+          code: 'EMPTY',
+          video_id: videoId,
+        }),
         { status: 422, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    const duracionTotal = segments[segments.length - 1].end;
-    const textCompleto = segments.map((s) => s.text).join(' ');
+    const duracionTotal = segmentos[segmentos.length - 1].end;
+    const textCompleto = segmentos.map((s) => s.text).join(' ');
 
-    const payload: YoutubeTranscriptPayload = {
+    const payload = {
       task: 'transcribe',
-      language: idiomaCorto(langUsado || 'es'),
-      duration: duracionTotal,
-      text: sanitizarTitulo(textCompleto, 12000),
-      segments,
-      words,
+      language: idiomaCorto(track.languageCode || 'es'),
+      duration: Number(duracionTotal.toFixed(2)),
+      text: sanitizarTitulo(textCompleto, 16000),
+      segments: segmentos.map((s) => ({
+        id: s.id,
+        start: s.start,
+        end: s.end,
+        text: sanitizarTitulo(s.text, 600),
+        words: s.words || [],
+      })),
+      words: palabras,
       provider: 'youtube-captions',
-      fuente: 'subtítulos de YouTube (auto o manual)',
+      fuente: 'subtítulos de YouTube (API interna, con marcas por palabra)',
       url_youtube: url,
       video_id: videoId,
+      titulo_video: sanitizarTitulo(player.titulo || '', 300) || undefined,
     };
 
     return new Response(JSON.stringify(payload), {
@@ -180,7 +148,10 @@ export async function POST(request: Request) {
   } catch (err: any) {
     console.error('Error en /api/youtube/transcribir:', err);
     return new Response(
-      JSON.stringify({ error: err.message || 'Error obteniendo la transcripción de YouTube', code: 'YT_TRANSCRIBE_ERROR' }),
+      JSON.stringify({
+        error: err.message || 'Error obteniendo la transcripción de YouTube',
+        code: 'YT_TRANSCRIBE_ERROR',
+      }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

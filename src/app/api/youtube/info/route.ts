@@ -2,11 +2,12 @@
  * API Route: /api/youtube/info
  * Obtiene metadatos REALES de un video de YouTube (título, autor, duración, miniatura)
  * sin depender de workers externos:
- *   - Título/Autor  → oEmbed oficial de YouTube
- *   - Duración      → parseo del campo lengthSeconds en la página del vídeo
- *   - Miniatura     → i.ytimg.com (CDN oficial)
+ *   1. API interna youtubei/v1/player (cliente ANDROID) → título/autor/duración reales.
+ *   2. Fallback: oEmbed oficial + parseo de la página del vídeo.
  * Ya NO devuelve datos ficticios simulados.
  */
+
+import { playerAndroid } from '@/src/lib/youtubeApi';
 
 export interface YoutubeInfoResponse {
   titulo: string;
@@ -41,30 +42,6 @@ function extraerNumero(html: string, clave: string, maxLen = 60): number | null 
 // Cache simple en memoria (10 min) para no golpear YouTube con cada petición
 const cacheInfo = new Map<string, { info: YoutubeInfoResponse; expira: number }>();
 
-/** Detecta si el vídeo se puede reproducir en reproductor embebido (iframe) */
-async function esEmbeddable(videoId: string): Promise<boolean> {
-  try {
-    const res = await fetch(`https://www.youtube.com/embed/${videoId}?hl=es`, {
-      headers: { 'User-Agent': UA, 'Accept-Language': 'es-ES,es;q=0.9' },
-      signal: AbortSignal.timeout(12000),
-    });
-    const html = await res.text();
-    if (!res.ok && res.status === 404) return false;
-    // El iframe de youtube responde 200 con el reproductor aunque no sea embebible.
-    // Indicadores de NO embebible en el HTML:
-    const noEmbeber =
-      html.includes('"status":"LOGIN_REQUIRED"') ||
-      html.includes('"status":"UNPLAYABLE"') ||
-      html.includes('"status":"ERROR"') ||
-      html.includes('This video is not available') ||
-      html.includes('El propietario del vídeo no ha permitido') ||
-      html.includes('not been allowed to be embedded');
-    return !noEmbeber;
-  } catch {
-    return true; // si no podemos comprobarlo, asumimos que sí (el iframe lo dirá)
-  }
-}
-
 /**
  * Obtiene metadatos reales de YouTube. Nunca devuelve datos ficticios:
  * si no puede obtenerlos, lanza un Error con mensaje claro.
@@ -80,41 +57,54 @@ export async function fetchYoutubeInfo(url: string): Promise<YoutubeInfoResponse
     return cacheado.info;
   }
 
+  // 1. API interna (ANDROID) → título/autor/duración de una sola llamada
   let titulo = '';
   let autor = '';
-
-  // 1. oEmbed (rápido y estable)
-  try {
-    const oe = await fetch(
-      `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`,
-      { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(12000) }
-    );
-    if (oe.ok) {
-      const data = await oe.json();
-      titulo = data.title || '';
-      autor = data.author_name || '';
-    }
-  } catch {
-    /* seguimos sin oEmbed */
-  }
-
-  // 2. Duración desde la página del vídeo
   let duracion = 0;
   try {
-    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=es`, {
-      headers: { 'User-Agent': UA, 'Accept-Language': 'es-ES,es;q=0.9' },
-      signal: AbortSignal.timeout(15000),
-    });
-    const html = await res.text();
-    const ms = extraerNumero(html, '"approxDurationMs"');
-    const secs = extraerNumero(html, '"lengthSeconds"');
-    duracion = Math.round((ms ? ms / 1000 : secs) || 0);
-  } catch {
-    /* duración 0 → se recalculará con la transcripción real */
+    const p = await playerAndroid(videoId);
+    titulo = p.titulo;
+    autor = p.autor;
+    duracion = p.duracion_seg;
+  } catch (err) {
+    console.warn('[YT info] API ANDROID no disponible, uso fallback oEmbed:', (err as Error)?.message);
+  }
+
+  // 2. Fallback: oEmbed + página del vídeo
+  if (!titulo) {
+    try {
+      const oe = await fetch(
+        `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`,
+        { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(12000) }
+      );
+      if (oe.ok) {
+        const data = await oe.json();
+        titulo = data.title || '';
+        autor = data.author_name || '';
+      }
+    } catch {
+      /* seguimos */
+    }
+  }
+  if (!duracion) {
+    try {
+      const res = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=es`, {
+        headers: { 'User-Agent': UA, 'Accept-Language': 'es-ES,es;q=0.9' },
+        signal: AbortSignal.timeout(15000),
+      });
+      const html = await res.text();
+      const ms = extraerNumero(html, '"approxDurationMs"');
+      const secs = extraerNumero(html, '"lengthSeconds"');
+      duracion = Math.round((ms ? ms / 1000 : secs) || 0);
+    } catch {
+      /* duración 0 → se recalculará con la transcripción real */
+    }
   }
 
   if (!titulo || !autor) {
-    throw new Error('YouTube no devolvió la información del vídeo. Comprueba que el enlace es correcto y el vídeo es público.');
+    throw new Error(
+      'YouTube no devolvió la información del vídeo. Comprueba que el enlace es correcto y el vídeo es público.'
+    );
   }
 
   const info: YoutubeInfoResponse = {
@@ -123,19 +113,11 @@ export async function fetchYoutubeInfo(url: string): Promise<YoutubeInfoResponse
     duracion_seg: duracion,
     miniatura: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
     videoId,
-    embeddable: undefined, // se rellena bajo demanda (evita 2 peticiones por análisis)
+    embeddable: true,
     fuente: 'youtube-real',
   };
 
   cacheInfo.set(videoId, { info, expira: Date.now() + 10 * 60 * 1000 });
-
-  // Comprobación de embebible (solo en la 1ª petición del vídeo)
-  try {
-    info.embeddable = await esEmbeddable(videoId);
-  } catch {
-    info.embeddable = true;
-  }
-
   return info;
 }
 

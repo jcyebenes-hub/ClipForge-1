@@ -133,6 +133,8 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const ytPlayerRef = useRef<any>(null);
   const ytContainerRef = useRef<HTMLDivElement>(null);
   const ytApiReadyRef = useRef<boolean>(false);
+  // Estado (no ref) para que el overlay de "Cargando…" se quite al repintar cuando el player está listo.
+  const [ytReady, setYtReady] = useState(false);
 
   function extraerIdYoutube(url: string | null): string | null {
     if (!url) return null;
@@ -228,6 +230,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
             onReady: (e: any) => {
               if (destruido) return;
               ytApiReadyRef.current = true;
+              setYtReady(true);
               try {
                 const d = e.target.getDuration?.();
                 if (d && d > 0) setVideoDuration(d);
@@ -238,6 +241,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
               if (e.data === 2 || e.data === 0) setIsPlaying(false);
             },
             onError: () => {
+              setYtReady(true); // quitar el overlay para que se vea el mensaje del iframe
               toast.error('YouTube no permite reproducir este vídeo incrustado. Abre el enlace directamente.');
             },
           },
@@ -251,6 +255,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     return () => {
       destruido = true;
       ytApiReadyRef.current = false;
+      setYtReady(false);
       if (ytPlayerRef.current?.destroy) {
         try {
           ytPlayerRef.current.destroy();
@@ -1398,7 +1403,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                           ref={ytContainerRef}
                           className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full"
                         />
-                        {!ytApiReadyRef.current && (
+                        {!ytReady && (
                           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-slate-300 z-10">
                             <Youtube className="w-10 h-10 text-red-500 animate-pulse" />
                             <span className="text-xs font-semibold">Cargando reproductor de YouTube…</span>

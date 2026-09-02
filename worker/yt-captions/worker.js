@@ -113,9 +113,11 @@ export async function obtenerPistas(videoId) {
 }
 
 async function fetchVtt(baseUrl) {
-  let base = baseUrl.includes('fmt=')
-    ? baseUrl.replace(/fmt=[a-z0-9]+/i, 'fmt=vtt')
-    : `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}fmt=vtt`;
+  let u = String(baseUrl || '').replace(/\\u0026/g, '&').replace(/&amp;/g, '&').trim();
+  if (u.startsWith('/')) u = 'https://www.youtube.com' + u;
+  let base = u.includes('fmt=')
+    ? u.replace(/fmt=[a-z0-9]+/i, 'fmt=vtt')
+    : `${u}${u.includes('?') ? '&' : '?'}fmt=vtt`;
   const res = await fetch(base, {
     headers: { 'User-Agent': UA_BASE, 'Accept-Language': 'es-ES,es;q=0.9' },
     signal: AbortSignal.timeout(25000),

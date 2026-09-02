@@ -247,7 +247,13 @@ export async function POST(request: Request) {
       }
     }
 
-    return directo;
+    // `directo` ya tuvo su body consumido por directo.json(); no podemos devolverlo
+    // tal cual (el adaptador de server.ts volvería a leerlo y lanzaría "body used").
+    // Reconstruimos la respuesta con el mismo status y el JSON ya leído.
+    return new Response(JSON.stringify(directoJson), {
+      status: directo.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
   } catch (err: any) {
     console.error('Error en /api/youtube/transcribir:', err);
     return new Response(

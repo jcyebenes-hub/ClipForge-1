@@ -140,9 +140,15 @@ export async function getAnalyticsSummary(): Promise<MetricasResumen> {
   const totalErrores = eventos.filter((e) => e.tipo === 'error_sistema').length;
 
   let totalProyectos = 0;
-  let totalClipsExportados = 0;
   const proyectosPorDia = new Map<string, number>();
   const exportPorDia = new Map<string, number>();
+
+  // Clips exportados: acciones REALES registradas por trackClipExported().
+  // (La tabla 'clips' solo la escriben rutas de servidor/cron; el cliente registra
+  //  cada exportación como evento, que es la señal real de "clip exportado".)
+  const eventosExport = eventos.filter((e) => e.tipo === 'clip_exportado');
+  let totalClipsExportados = eventosExport.length;
+  eventosExport.forEach((e) => sumarDia(exportPorDia, e.timestamp));
 
   try {
     const { data: sesion } = await supabase.auth.getSession();
@@ -153,18 +159,9 @@ export async function getAnalyticsSummary(): Promise<MetricasResumen> {
       const { data: pros } = await supabase.from('proyectos').select('creado_en').eq('user_id', uid);
       totalProyectos = pros?.length || 0;
       (pros || []).forEach((p) => sumarDia(proyectosPorDia, p.creado_en));
-
-      // Clips reales en estado final, del usuario (vía proyecto).
-      const { data: clips } = await supabase
-        .from('clips')
-        .select('estado, creado_en, proyecto:proyectos(user_id)')
-        .in('estado', ['renderizado', 'publicado', 'exportado']);
-      const mios = (clips || []).filter((c: any) => c.proyecto?.user_id === uid);
-      totalClipsExportados = mios.length;
-      mios.forEach((c: any) => sumarDia(exportPorDia, c.creado_en));
     }
   } catch {
-    // Sin sesión / sin acceso: proyectos y clips quedan en 0.
+    // Sin sesión / sin acceso: proyectos quedan en 0.
   }
 
   const tasaConversionCTR = totalVisitas > 0 ? Math.round((totalClicksEmpezar / totalVisitas) * 100) : 0;

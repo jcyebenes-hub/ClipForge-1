@@ -32,7 +32,8 @@ import {
   ExternalLink,
   ChevronRight,
   TrendingUp,
-  Radio
+  Radio,
+  Upload
 } from 'lucide-react';
 import { useAuth } from '../../../../../context/AuthContext';
 import { supabase } from '../../../../../lib/supabase/client';
@@ -103,6 +104,9 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const [progressStage, setProgressStage] = useState('');
   const [progressDetail, setProgressDetail] = useState('');
   const [transcriptData, setTranscriptData] = useState<TranscriptionPayload | null>(null);
+  // Aviso cuando YouTube no nos deja leer los subtítulos (IP bloqueada o vídeo sin subs).
+  // Sirve para mostrar un mensaje claro y empujar la subida del archivo (Whisper).
+  const [ytBlock, setYtBlock] = useState<{ tipo: 'bloqueado' | 'sin_subtitulos'; mensaje: string } | null>(null);
 
   // Viral Analysis State (Fase 5)
   const [analyzing, setAnalyzing] = useState(false);
@@ -513,9 +517,25 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        // Distinguir "YouTube bloquea nuestra IP" de "el vídeo no tiene subtítulos"
+        // para mostrar el aviso correcto y empujar la subida del archivo (Whisper).
+        if (data?.code === 'YT_BOT_BLOCKED' || data?.bloqueado_por_youtube) {
+          setYtBlock({
+            tipo: 'bloqueado',
+            mensaje:
+              'YouTube está bloqueando la lectura de subtítulos desde nuestro servidor para este vídeo (protección anti-bots sobre IPs en la nube). Es muy probable que el vídeo SÍ tenga subtítulos, pero no podemos leerlos desde aquí.',
+          });
+        } else if (data?.code === 'NO_CAPTIONS') {
+          setYtBlock({
+            tipo: 'sin_subtitulos',
+            mensaje:
+              'Este vídeo no tiene subtítulos disponibles en YouTube (ni manuales ni automáticos), así que no hay nada que leer.',
+          });
+        }
         throw new Error(data?.error || `Error obteniendo subtítulos de YouTube (${res.status})`);
       }
 
+      setYtBlock(null);
       setProgressPercent(85);
       setProgressStage('Guardando transcripción con marcas de tiempo…');
       setProgressDetail('Indexando segmentos y palabras por segundo…');
@@ -1247,6 +1267,39 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                       </button>
                     </>
                   )}
+                </div>
+              )}
+
+              {/* Aviso cuando YouTube no nos deja leer los subtítulos: empujamos la subida (Whisper) */}
+              {ytBlock && !transcribing && (
+                <div className="rounded-2xl border border-amber-600/40 bg-amber-950/25 p-5 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="text-sm font-bold text-amber-200">
+                        {ytBlock.tipo === 'bloqueado'
+                          ? 'YouTube protege este vídeo desde nuestro servidor'
+                          : 'Este vídeo no tiene subtítulos en YouTube'}
+                      </h3>
+                      <p className="text-xs text-amber-100/80 mt-1 leading-relaxed">{ytBlock.mensaje}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-[#0e0e1c]/70 border border-amber-700/30 p-3.5 text-xs text-slate-300 leading-relaxed">
+                    <strong className="text-white">Solución gratuita e inmediata:</strong> sube el archivo de audio o vídeo y lo transcribimos con Whisper (motor de IA). Funciona con <strong className="text-white">cualquier</strong> vídeo y te da marcas de tiempo por palabra, igual que el resto del pipeline.
+                  </div>
+
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-7 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black shadow-lg shadow-amber-900/30 transition-all cursor-pointer"
+                  >
+                    <Upload className="w-5 h-5" />
+                    <span>Subir archivo y transcribir con Whisper</span>
+                  </button>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Vale el audio o el vídeo (.mp3, .mp4, .m4a, .wav…). Si es contenido tuyo, usa el original; si no, consíguelo por tu cuenta y súbelo aquí.
+                  </p>
                 </div>
               )}
             </div>

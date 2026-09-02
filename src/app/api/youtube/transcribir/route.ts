@@ -253,12 +253,14 @@ export async function POST(request: Request) {
     ]);
     let finalJson: any = null;
     let finalStatus = 502;
+    let youtubeBloqueado = false; // ¿YouTube bloqueó nuestra IP en algún intento directo?
 
     for (let intento = 1; intento <= INTENTOS; intento++) {
       // Capa 1: intento directo
       const directo = await transcribirDirecto(url, videoId, debug);
       if (directo.status === 200) return directo;
       const directoJson = await directo.json().catch(() => ({}));
+      if (directoJson?.code === 'YT_BOT_BLOCKED') youtubeBloqueado = true;
       finalJson = directoJson;
       finalStatus = directo.status;
 
@@ -292,6 +294,12 @@ export async function POST(request: Request) {
     // `directo` ya tuvo su body consumido por directo.json(); no podemos devolverlo
     // tal cual (el adaptador de server.ts volvería a leerlo y lanzaría "body used").
     // Reconstruimos la respuesta con el status y el JSON del último intento.
+    // Señal fiable de bloqueo: si YouTube bloqueó nuestra IP en el intento directo,
+    // lo marcamos aunque el Worker haya devuelto otro código (p. ej. NO_CAPTIONS),
+    // para que el front muestre el aviso correcto y ofrezca subir el archivo.
+    if (finalJson && typeof finalJson === 'object' && youtubeBloqueado) {
+      finalJson = { ...finalJson, bloqueado_por_youtube: true };
+    }
     return new Response(JSON.stringify(finalJson), {
       status: finalStatus,
       headers: { 'Content-Type': 'application/json' },

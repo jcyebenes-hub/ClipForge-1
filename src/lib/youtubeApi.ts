@@ -297,3 +297,140 @@ export function parseVttATranscripcion(vtt: string, idioma: string) {
 
   return { segmentos, palabras: palabrasFinales, metodo: 'cue-texto' };
 }
+
+/** ── Estrategia con cookies de sesión (consentimiento/visitor) ── */
+
+export interface SesionCookies {
+  cookieHeader: string;
+  visitorData?: string;
+}
+
+/** Obtiene cookies base de youtube.com (CONSENT, SOCS, VISITOR_INFO1_LIVE…) */
+export async function obtenerCookiesYouTube(): Promise<SesionCookies> {
+  try {
+    const res = await fetch('https://www.youtube.com/?hl=es&gl=ES', {
+      headers: {
+        'User-Agent': UA_BASE,
+        'Accept-Language': 'es-ES,es;q=0.9',
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+    const raw = res.headers.get('set-cookie') || '';
+    const todas = (res.headers.getSetCookie ? res.headers.getSetCookie() : [raw]).map((c: string) => c.split(';')[0]).filter(Boolean);
+    const mapa = new Map<string, string>();
+    for (const c of todas) {
+      const [k, ...rest] = c.split('=');
+      if (k) mapa.set(k.trim(), rest.join('='));
+    }
+    if (!mapa.has('CONSENT')) mapa.set('CONSENT', 'YES+cb.20240101-00-p0.es+FX+100');
+    if (!mapa.has('SOCS')) mapa.set('SOCS', 'CAI');
+    const cookieHeader = [...mapa.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+    return { cookieHeader, visitorData: undefined };
+  } catch {
+    return { cookieHeader: 'CONSENT=YES+cb.20240101-00-p0.es+FX+100; SOCS=CAI', visitorData: undefined };
+  }
+}
+
+/** Consulta youtubei con cookies (y opcionalmente con visitorData) */
+export async function consultarClienteConCookies(
+  videoId: string,
+  cliente: ClienteYouTube,
+  sesion: SesionCookies
+): Promise<IntentoCliente> {
+  const body: any = {
+    context: {
+      client: {
+        clientName: cliente.name,
+        clientVersion: cliente.ver,
+        hl: 'es',
+        gl: 'ES',
+      },
+    },
+    videoId,
+    contentCheckOk: true,
+    racyCheckOk: true,
+  };
+  if (sesion.visitorData) {
+    body.context.client.visitorData = sesion.visitorData;
+  }
+  try {
+    const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${cliente.key}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': userAgentPara(cliente),
+        'Accept-Language': 'es-ES,es;q=0.9',
+        Cookie: sesion.cookieHeader,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) {
+      return { cliente: `${cliente.name}+cookie`, httpOk: false, playable: false, numPistas: 0, pistas: [], razon: `HTTP ${res.status}` };
+    }
+    const d = await res.json();
+    const vd = d?.videoDetails || {};
+    const tracks: CaptionTrackAndroid[] = d?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+    const ps = d?.playabilityStatus || {};
+    return {
+      cliente: `${cliente.name}+cookie`,
+      httpOk: true,
+      statusApi: ps.status,
+      razon: ps.reason,
+      playable: ps.status === 'OK',
+      titulo: vd.title || '',
+      autor: vd.author || '',
+      duracion_seg: Number(vd.lengthSeconds) || 0,
+      numPistas: tracks.length,
+      pistas: tracks,
+    };
+  } catch (err: any) {
+    return { cliente: `${cliente.name}+cookie`, httpOk: false, playable: false, numPistas: 0, pistas: [], razon: String(err?.message || err).slice(0, 120) };
+  }
+}
+
+/** Comprueba qué devuelve la página del vídeo (longitud y marcadores) */
+export async function sondearPagina(videoId: string) {
+  const resultados: any[] = [];
+  const sesion = await obtenerCookiesYouTube();
+  resultados.push({ prueba: 'homepage-cookies', cookies: sesion.cookieHeader.length });
+
+  // youtubei con cookies
+  for (const cliente of CLIENTES_YOUTUBE.slice(0, 3)) {
+    const it = await consultarClienteConCookies(videoId, cliente, sesion);
+    resultados.push({
+      prueba: `youtubei-${it.cliente}`,
+      statusApi: it.statusApi || undefined,
+      razon: it.razon || undefined,
+      playable: it.playable,
+      numPistas: it.numPistas,
+      conTitulo: Boolean(it.titulo),
+      duracionApi: it.duracion_seg || 0,
+    });
+  }
+
+  // página watch con cookie de consentimiento
+  try {
+    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=es`, {
+      headers: {
+        'User-Agent': UA_BASE,
+        'Accept-Language': 'es-ES,es;q=0.9',
+        Cookie: sesion.cookieHeader,
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+    const html = await res.text();
+    const ls = html.match(/"lengthSeconds":"?(\d+)/);
+    resultados.push({
+      prueba: 'watch-page+consent',
+      len: html.length,
+      lengthSeconds: ls ? ls[1] : null,
+      hasCaptionTracks: html.includes('captionTracks'),
+      hasLoginRequired: html.includes('LOGIN_REQUIRED') || /no eres un bot|not a bot/.test(html),
+    });
+  } catch (err: any) {
+    resultados.push({ prueba: 'watch-page+consent', error: String(err?.message || err).slice(0, 80) });
+  }
+
+  return resultados;
+}

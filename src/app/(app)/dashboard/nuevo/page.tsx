@@ -21,7 +21,7 @@ import {
 import { useAuth } from '../../../../context/AuthContext';
 import { supabase } from '../../../../lib/supabase/client';
 import type { Proyecto } from '../../../../lib/supabase/types';
-import { extractYoutubeId, getMockYoutubeInfo, type YoutubeInfoResponse } from '../../../api/youtube/info/route';
+import type { YoutubeInfoResponse } from '../../../api/youtube/info/route';
 import { validarArchivoVideo } from '../../../../lib/videoValidator';
 import { sanitizarTitulo } from '../../../../lib/sanitizer';
 import { CopyrightNoticeModal, hasAcceptedCopyrightNotice } from '../../../../components/proyecto/CopyrightNoticeModal';
@@ -235,23 +235,22 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
     setYtInfo(null);
 
     try {
-      // Call /api/youtube/info
+      // Información REAL desde YouTube (título, autor, duración real del vídeo)
       const response = await fetch(`/api/youtube/info?url=${encodeURIComponent(youtubeUrl.trim())}`);
-      
+
       if (response.ok) {
         const data: YoutubeInfoResponse = await response.json();
         setYtInfo(data);
-        toast.success('Información del video obtenida con éxito');
+        toast.success('Vídeo real localizado en YouTube');
       } else {
-        // Fallback to local parser
-        const fallback = getMockYoutubeInfo(youtubeUrl.trim());
-        setYtInfo(fallback);
-        toast.success('Información del video obtenida');
+        const errData = await response.json().catch(() => ({}));
+        setYtInfo(null);
+        toast.error(errData?.error || 'No se pudo verificar el vídeo en YouTube.');
       }
     } catch (err) {
-      console.warn('Fetch info error, using fallback:', err);
-      const fallback = getMockYoutubeInfo(youtubeUrl.trim());
-      setYtInfo(fallback);
+      console.warn('Fetch info error:', err);
+      setYtInfo(null);
+      toast.error('Error de conexión al obtener la información del vídeo.');
     } finally {
       setIsAnalyzingYt(false);
     }
@@ -268,14 +267,16 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
     }
   };
 
-  // Pestaña B: Confirm and download from YouTube
+  // Pestaña B: Crear el proyecto con la URL real.
+  // La transcripción se obtiene en la pantalla del proyecto mediante los
+  // subtítulos reales de YouTube (sin descargas ni simulaciones).
   const handleImportYoutubeVideo = async () => {
     if (!ytInfo) return;
     setIsCopyrightModalOpen(false);
 
     setIsDownloadingYt(true);
-    setDownloadProgress(15);
-    setDownloadStatusText('Conectando con el worker de descarga...');
+    setDownloadProgress(55);
+    setDownloadStatusText('Registrando el proyecto en tu cuenta…');
 
     const projectId = 'proj-yt-' + Math.random().toString(36).substring(2, 9);
     const userId = user?.id || 'demo-user';
@@ -288,35 +289,14 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
       url_youtube: youtubeUrl,
       archivo_nombre: null,
       estado: 'nuevo',
-      duracion_seg: ytInfo.duracion_seg,
+      duracion_seg: ytInfo.duracion_seg || 0,
       creado_en: new Date().toISOString(),
       actualizado_en: new Date().toISOString(),
     };
 
-    // Simulate download stages
-    const stageTimer1 = setTimeout(() => {
-      setDownloadProgress(45);
-      setDownloadStatusText('Descargando stream de video y audio en máxima resolución (1080p)...');
-    }, 700);
-
-    const stageTimer2 = setTimeout(() => {
-      setDownloadProgress(80);
-      setDownloadStatusText('Registrando proyecto y preparando pistas para análisis...');
-    }, 1500);
-
     try {
-      // Call /api/youtube/descargar
-      await fetch('/api/youtube/descargar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: youtubeUrl,
-          proyecto_id: projectId,
-        }),
-      }).catch((e) => console.warn('Worker call notice:', e));
-
       if (isSupabaseConfigured && user) {
-        await supabase.from('proyectos').insert([
+        const { error: insertError } = await supabase.from('proyectos').insert([
           {
             id: projectId,
             user_id: user.id,
@@ -324,9 +304,13 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
             url_youtube: youtubeUrl,
             archivo_nombre: null,
             estado: 'nuevo',
-            duracion_seg: ytInfo.duracion_seg,
+            duracion_seg: ytInfo.duracion_seg || 0,
           },
         ] as any);
+
+        if (insertError) {
+          console.warn('Error insertando proyecto de YouTube en Supabase:', insertError);
+        }
       }
 
       // Save to local storage
@@ -334,21 +318,13 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
       const existing = localData ? JSON.parse(localData) : [];
       localStorage.setItem('clipforge_local_proyectos', JSON.stringify([newProject, ...existing]));
 
-      setTimeout(() => {
-        setDownloadProgress(100);
-        setDownloadStatusText('¡Descarga finalizada! Proyecto registrado.');
-        
-        setTimeout(() => {
-          toast.success('Video de YouTube importado correctamente');
-          onNavigate?.(`/dashboard/proyecto/${projectId}`);
-        }, 600);
-      }, 2200);
-
+      setDownloadProgress(100);
+      setDownloadStatusText('¡Proyecto creado! Dentro obtendrás la transcripción real del vídeo.');
+      toast.success('Vídeo de YouTube importado correctamente');
+      onNavigate?.(`/dashboard/proyecto/${projectId}`);
     } catch (err: any) {
-      clearTimeout(stageTimer1);
-      clearTimeout(stageTimer2);
       setIsDownloadingYt(false);
-      toast.error('Error al importar video: ' + err.message);
+      toast.error('Error al importar el vídeo: ' + (err.message || 'Error desconocido'));
     }
   };
 
@@ -459,7 +435,7 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
             </div>
 
             <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/30">
-              Auto-Descarga
+              Subtítulos Reales
             </span>
           </button>
         </div>
@@ -781,7 +757,7 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
                     </div>
 
                     <p className="text-xs text-slate-400 leading-relaxed">
-                      El worker descargará el stream de audio/video y generará clips con subtítulos automáticos listos para publicar en TikTok, Instagram Reels y YouTube Shorts.
+                      La app leerá los subtítulos reales del vídeo (manuales o automáticos) y te mostrará el reproductor de YouTube dentro del proyecto para previsualizar cada momento viral.
                     </p>
                   </div>
                 </div>
@@ -792,7 +768,7 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
                     <div className="flex items-center justify-between text-xs font-semibold">
                       <span className="text-purple-300 flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin text-red-400" />
-                        {downloadStatusText || 'Descargando desde YouTube y preparando clips...'}
+                        {downloadStatusText || 'Creando proyecto y preparando la transcripción…'}
                       </span>
                       <span className="text-cyan-400 font-mono font-bold">{downloadProgress}%</span>
                     </div>
@@ -803,7 +779,7 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
                       />
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      Llamando a <code className="text-red-400">/api/youtube/descargar</code> → Creando proyecto en Supabase.
+                      Creando el proyecto → dentro obtendrás la transcripción real (subtítulos de YouTube) y podrás extraer los momentos virales.
                     </p>
                   </div>
                 )}
@@ -828,7 +804,7 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
                     {isDownloadingYt ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Descargando vídeo...</span>
+                        <span>Creando proyecto...</span>
                       </>
                     ) : (
                       <>

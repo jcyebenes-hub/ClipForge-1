@@ -3,6 +3,12 @@
  * Analiza la transcripción dividida en ventanas de 30 segundos (con 5s de solape)
  * usando Llama 3.3 70B en Groq para calcular el potencial viral y extraer los mejores clips.
  * Combina 60% LLM + 40% Heurística de Audio/Ritmo.
+ *
+ * v2 (2026-09): 
+ *  - Preselecciona ventanas diversas (máx 16) antes de llamar a la IA (menos tokens/latencia).
+ *  - Aplica NMS (supresión de solapes) para que los clips NO se solapen ni se repitan
+ *    entre sí: 6 momentos realmente distintos del vídeo.
+ *  - Indica con transparencia qué motor generó el resultado.
  */
 
 export interface AnalizarApiRequest {
@@ -113,14 +119,87 @@ function generarAnalisisAlgoritmico(
     };
   });
 
+  // Sin recortar a 6 aquí: el NMS del llamador elegirá los 6 mejores sin solapes
   return scoredClips
     .filter((c) => c.puntuacion_viral >= 40)
-    .sort((a, b) => b.puntuacion_viral - a.puntuacion_viral)
-    .slice(0, 6);
+    .sort((a, b) => b.puntuacion_viral - a.puntuacion_viral);
 }
 
 import { verificarRateLimit, obtenerIpDeRequest } from '@/src/lib/rateLimit';
 import { sanitizarTitulo, sanitizarDescripcion } from '@/src/lib/sanitizer';
+
+/**
+ * Preselecciona un máximo de `max` ventanas repartidas en el tiempo y con mejor
+ * puntuación heurística, para no saturar el prompt de la IA con ~57 ventanas
+ * (la mayoría casi idénticas por el solape de 5s).
+ */
+function preseleccionarVentanasDiversas(
+  ventanas: Array<any>,
+  max: number = 16,
+  distanciaMinimaInicio: number = 20
+): Array<any> {
+  if (ventanas.length <= max) return ventanas;
+
+  const ordenadas = [...ventanas].sort(
+    (a, b) => (b.puntuacion_heuristica || 0) - (a.puntuacion_heuristica || 0)
+  );
+
+  const elegidas: Array<any> = [];
+  for (const v of ordenadas) {
+    const cerca = elegidas.some(
+      (c) => Math.abs(Number(c.inicio) - Number(v.inicio)) < distanciaMinimaInicio
+    );
+    if (!cerca) {
+      elegidas.push(v);
+      if (elegidas.length >= max) break;
+    }
+  }
+  return elegidas.sort((a, b) => a.inicio - b.inicio);
+}
+
+/**
+ * NMS: de una lista de clips puntuados, acepta el mejor y descarta cualquier
+ * otro que se solape >0.5s con los ya aceptados. Evita clips duplicados que
+ * cubren el mismo momento del vídeo (p. ej. 0-30s y 25-55s).
+ */
+function aplicarNMS(clips: ClipResult[], max: number = 6, toleranciaSolapeSeg: number = 0.5): ClipResult[] {
+  const ordenados = [...clips].sort((a, b) => b.puntuacion_viral - a.puntuacion_viral);
+  const aceptados: ClipResult[] = [];
+  for (const c of ordenados) {
+    const solapa = aceptados.some(
+      (a) => c.inicio_seg < a.fin_seg - toleranciaSolapeSeg && c.fin_seg > a.inicio_seg + toleranciaSolapeSeg
+    );
+    if (!solapa) {
+      aceptados.push(c);
+      if (aceptados.length >= max) break;
+    }
+  }
+  return aceptados.sort((a, b) => a.inicio_seg - b.inicio_seg);
+}
+
+/** Extrae un array de evaluaciones del JSON (a veces viene con ```json ... ``` o texto alrededor) */
+function extraerArrayEvaluaciones(raw: string): any[] {
+  if (!raw) return [];
+  let t = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+  try {
+    const parsed = JSON.parse(t);
+    if (Array.isArray(parsed)) return parsed;
+    return parsed.evaluaciones || parsed.ventanas || parsed.clips || [];
+  } catch {
+    // Último intento: recortar hasta el primer [ y último ]
+    const ini = t.indexOf('[');
+    const fin = t.lastIndexOf(']');
+    if (ini !== -1 && fin > ini) {
+      try {
+        const parsed = JSON.parse(t.slice(ini, fin + 1));
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        /* no recuperable */
+      }
+    }
+    return [];
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -188,13 +267,16 @@ export async function POST(request: Request) {
 
     const groqApiKey = process.env.GROQ_API_KEY;
 
-    // Si hay API key de Groq, invocamos llama-3.3-70b-versatile con timeout de 60s
+    // Si hay API key de Groq, invocamos llama-3.3-70b-versatile con timeout de 90s.
+    // Para no saturar el prompt (ni el presupuesto gratis), solo enviamos un
+    // subconjunto diverso de ventanas (máx 16).
     if (groqApiKey && ventanas.length > 0) {
+      const ventanasIA = preseleccionarVentanasDiversas(ventanas, 16);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
       try {
-        const ventanasPromptPayload = ventanas.map((v) => ({
+        const ventanasPromptPayload = ventanasIA.map((v) => ({
           ventana_id: v.ventana_id,
           inicio: v.inicio,
           fin: v.fin,
@@ -245,18 +327,12 @@ Debes responder ÚNICAMENTE un array JSON válido con la siguiente estructura ex
 
         if (groqResponse.ok) {
           const aiJson = await groqResponse.json();
-          const rawContent = aiJson.choices?.[0]?.message?.content || '{}';
+          const rawContent = aiJson.choices?.[0]?.message?.content || '';
           
-          let parsedEvaluations: any[] = [];
-          try {
-            const parsed = JSON.parse(rawContent);
-            parsedEvaluations = Array.isArray(parsed) ? parsed : (parsed.evaluaciones || parsed.ventanas || parsed.clips || Object.values(parsed)[0] || []);
-          } catch (pe) {
-            console.warn('Error parsing Groq LLM JSON response:', pe);
-          }
+          const parsedEvaluations = extraerArrayEvaluaciones(rawContent);
 
           if (Array.isArray(parsedEvaluations) && parsedEvaluations.length > 0) {
-            const scoredClips: ClipResult[] = ventanas.map((v, idx) => {
+            const scoredClips: ClipResult[] = ventanasIA.map((v, idx) => {
               const evalMatch = parsedEvaluations.find((e: any) => e.ventana_id === v.ventana_id) || parsedEvaluations[idx] || {};
               const llmScore = Math.min(100, Math.max(0, Number(evalMatch.puntuacion) || 65));
               const heuristicaScore = Number(v.puntuacion_heuristica) || 70;
@@ -273,7 +349,7 @@ Debes responder ÚNICAMENTE un array JSON válido con la siguiente estructura ex
                 puntuacion_viral: finalScore,
                 score_llm: llmScore,
                 score_heuristica: heuristicaScore,
-                titulo_hook: sanitizarTitulo(evalMatch.titulo_hook || `Gancho Viral #${v.ventana_id}`, 100),
+                titulo_hook: sanitizarTitulo(evalMatch.titulo_hook || `Momento viral #${v.ventana_id}`, 100),
                 razon: sanitizarDescripcion(evalMatch.razon || 'Estructura narrativa compacta con fuerte impacto inicial.', 300),
                 cta: '¡Sígueme para no perderte la segunda parte!',
                 texto_transcrito: sanitizarDescripcion(v.texto || '', 1000),
@@ -281,18 +357,19 @@ Debes responder ÚNICAMENTE un array JSON válido con la siguiente estructura ex
               };
             });
 
-            const top6Clips = scoredClips
-              .filter((c) => c.puntuacion_viral >= 40)
-              .sort((a, b) => b.puntuacion_viral - a.puntuacion_viral)
-              .slice(0, 6);
+            // Filtro por puntuación + NMS: 6 clips sin solaparse entre sí
+            const finalClips = aplicarNMS(
+              scoredClips.filter((c) => c.puntuacion_viral >= 40),
+              6
+            );
 
             return new Response(
               JSON.stringify({
                 success: true,
                 proyecto_id,
-                clips: top6Clips,
+                clips: finalClips,
                 total_ventanas: ventanas.length,
-                mensaje: `Analizadas ${ventanas.length} ventanas con Llama 3.3 70B y heurística acústica.`,
+                mensaje: `Evaluadas ${ventanasIA.length} ventanas con Llama 3.3 70B y seleccionados ${finalClips.length} momentos sin solapes.`,
                 provider: 'groq-llama-3.3',
               }),
               {
@@ -315,8 +392,8 @@ Debes responder ÚNICAMENTE un array JSON válido con la siguiente estructura ex
       }
     }
 
-    // Fallback: Algoritmo heurístico local de alta precisión
-    const fallbackClips = generarAnalisisAlgoritmico(ventanas, proyecto_id);
+    // Fallback: Algoritmo heurístico local + NMS (sin solapes entre clips)
+    const fallbackClips = aplicarNMS(generarAnalisisAlgoritmico(ventanas, proyecto_id), 6);
 
     return new Response(
       JSON.stringify({
@@ -324,7 +401,8 @@ Debes responder ÚNICAMENTE un array JSON válido con la siguiente estructura ex
         proyecto_id,
         clips: fallbackClips,
         total_ventanas: ventanas.length,
-        mensaje: `Analizadas ${ventanas.length} ventanas temporales con algoritmo de impacto viral.`,
+        mensaje:
+          'No se pudo usar el motor Llama 3.3 (límite, tiempo o respuesta inválida). Resultados generados con el motor heurístico local de impacto viral.',
         provider: 'algorithmic-heuristic',
       }),
       {

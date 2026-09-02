@@ -128,6 +128,139 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   // Extract ID from pathname or prop
   const effectiveId = proyectoId || (typeof window !== 'undefined' ? window.location.pathname.split('/').pop() : '') || 'proj-demo';
 
+  // ── Estado para proyectos de YouTube (reproductor real, sin vídeos de muestra) ──
+  const [analyzeProvider, setAnalyzeProvider] = useState<string | null>(null);
+  const ytPlayerRef = useRef<any>(null);
+  const ytContainerRef = useRef<HTMLDivElement>(null);
+  const ytApiReadyRef = useRef<boolean>(false);
+
+  function extraerIdYoutube(url: string | null): string | null {
+    if (!url) return null;
+    const m = url.match(/(?:youtu\.be\/|v\/|embed\/|shorts\/|watch\?v=|&v=)([^#&?]{11})/);
+    return m ? m[1] : null;
+  }
+  const videoIdYt = proyecto?.url_youtube ? extraerIdYoutube(proyecto.url_youtube) : null;
+  const esYoutube = Boolean(videoIdYt) && !proyecto?.video_url;
+
+  // Resolver URL real de reproducción cuando el proyecto tiene archivo en storage (subida)
+  useEffect(() => {
+    let activo = true;
+    if (!proyecto || esYoutube || proyecto.video_url || !proyecto.archivo_nombre) return;
+    if (!isSupabaseConfigured || !user) return;
+    (async () => {
+      try {
+        const filePath = `${user.id}/${proyecto.id}/original.mp4`;
+        const { data, error } = await supabase.storage
+          .from('media')
+          .createSignedUrl(filePath, 60 * 60 * 24 * 7);
+        if (activo && !error && data?.signedUrl) {
+          setProyecto((prev) => (prev ? { ...prev, video_url: data.signedUrl } : prev));
+        }
+      } catch {
+        /* sin URL firmada: el preview quedará en negro con aviso */
+      }
+    })();
+    return () => {
+      activo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proyecto?.id, proyecto?.estado, proyecto?.archivo_nombre, isSupabaseConfigured, user?.id, esYoutube]);
+
+  // Cargar la API de YouTube y crear el reproductor cuando el proyecto es de YouTube
+  useEffect(() => {
+    if (!esYoutube || !videoIdYt) return;
+
+    let destruido = false;
+
+    function cargarApiYoutube(): Promise<any> {
+      return new Promise((resolve, reject) => {
+        const win = window as any;
+        if (win.YT && win.YT.Player) return resolve(win.YT);
+        const prev = win.onYouTubeIframeAPIReady;
+        win.onYouTubeIframeAPIReady = () => {
+          if (prev) prev();
+          resolve(win.YT);
+        };
+        if (!document.getElementById('yt-iframe-api')) {
+          const s = document.createElement('script');
+          s.id = 'yt-iframe-api';
+          s.src = 'https://www.youtube.com/iframe_api';
+          s.async = true;
+          s.onerror = () => reject(new Error('No se pudo cargar la API de YouTube'));
+          document.head.appendChild(s);
+        }
+      });
+    }
+
+    (async () => {
+      try {
+        const YT = await cargarApiYoutube();
+        if (destruido || !ytContainerRef.current) return;
+        ytPlayerRef.current = new YT.Player(ytContainerRef.current, {
+          videoId: videoIdYt,
+          playerVars: {
+            playsinline: 1,
+            rel: 0,
+            modestbranding: 1,
+            controls: 1,
+            hl: 'es',
+            origin: window.location.origin,
+          },
+          events: {
+            onReady: (e: any) => {
+              if (destruido) return;
+              ytApiReadyRef.current = true;
+              try {
+                const d = e.target.getDuration?.();
+                if (d && d > 0) setVideoDuration(d);
+              } catch {}
+            },
+            onStateChange: (e: any) => {
+              if (e.data === 1) setIsPlaying(true);
+              if (e.data === 2 || e.data === 0) setIsPlaying(false);
+            },
+            onError: () => {
+              toast.error('YouTube no permite reproducir este vídeo incrustado. Abre el enlace directamente.');
+            },
+          },
+        });
+      } catch (err) {
+        console.warn('Error cargando reproductor de YouTube:', err);
+        toast.error('No se pudo cargar el reproductor de YouTube.');
+      }
+    })();
+
+    return () => {
+      destruido = true;
+      ytApiReadyRef.current = false;
+      if (ytPlayerRef.current?.destroy) {
+        try {
+          ytPlayerRef.current.destroy();
+        } catch {}
+      }
+      ytPlayerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esYoutube, videoIdYt]);
+
+  // Polling de tiempo para el reproductor de YouTube (el <video> usa onTimeUpdate)
+  useEffect(() => {
+    if (!esYoutube) return;
+    const intervalo = window.setInterval(() => {
+      const p = ytPlayerRef.current;
+      if (!p || !ytApiReadyRef.current) return;
+      try {
+        const estado = p.getPlayerState?.();
+        if ([0, 1, 2, 3].includes(estado)) {
+          const t = Number(p.getCurrentTime?.() ?? 0);
+          if (isFinite(t)) procesarAvance(t);
+        }
+      } catch {}
+    }, 350);
+    return () => window.clearInterval(intervalo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esYoutube, activeClipPreview, loopPreview]);
+
   // Load project & saved clips
   useEffect(() => {
     async function loadProyecto() {
@@ -233,64 +366,89 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     loadProyecto();
   }, [effectiveId, isSupabaseConfigured, user, onNavigate]);
 
-  // Video time update listener + clip segment looping
-  const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      const time = videoRef.current.currentTime;
-      setCurrentTime(time);
-
-      // If active clip preview is playing and reaches end, loop back if loopPreview enabled
-      if (activeClipPreview && isPlaying) {
-        if (time >= activeClipPreview.fin_seg) {
-          if (loopPreview) {
+  // ── Control de reproducción unificado: <video> (archivos) o YouTube IFrame ──
+  // Avance de tiempo + bucle del clip activo
+  const procesarAvance = (time: number) => {
+    setCurrentTime(time);
+    if (activeClipPreview) {
+      if (time >= activeClipPreview.fin_seg) {
+        if (loopPreview) {
+          if (esYoutube) {
+            ytPlayerRef.current?.seekTo?.(activeClipPreview.inicio_seg, true);
+          } else if (videoRef.current) {
             videoRef.current.currentTime = activeClipPreview.inicio_seg;
-          } else {
-            videoRef.current.pause();
-            setIsPlaying(false);
           }
+        } else {
+          if (esYoutube) {
+            ytPlayerRef.current?.pauseVideo?.();
+          } else {
+            videoRef.current?.pause();
+          }
+          setIsPlaying(false);
         }
       }
     }
   };
 
+  const handleTimeUpdate = () => {
+    if (videoRef.current) procesarAvance(videoRef.current.currentTime);
+  };
+
   const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setVideoDuration(videoRef.current.duration);
-    }
+    if (videoRef.current) setVideoDuration(videoRef.current.duration);
   };
 
-  // Seek video to specific timestamp
-  const seekTo = (timestamp: number, stopClipPreview: boolean = true) => {
-    if (stopClipPreview) {
-      setActiveClipPreview(null);
-    }
-    if (videoRef.current) {
-      videoRef.current.currentTime = timestamp;
-      if (videoRef.current.paused) {
-        videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+  // Orden de reproducción según el tipo de proyecto
+  const controlarReproduccion = (op: 'seek' | 'toggle', timestamp?: number) => {
+    if (esYoutube) {
+      const p = ytPlayerRef.current;
+      if (!p || !ytApiReadyRef.current) {
+        toast.info('El reproductor de YouTube está cargando…');
+        return;
       }
-    }
-  };
-
-  const togglePlay = () => {
-    if (videoRef.current) {
-      if (videoRef.current.paused) {
-        videoRef.current.play();
+      if (op === 'seek' && typeof timestamp === 'number') {
+        p.seekTo(timestamp, true);
+        if (p.getPlayerState?.() !== 1) p.playVideo?.();
         setIsPlaying(true);
       } else {
-        videoRef.current.pause();
+        const estado = p.getPlayerState?.();
+        if (estado === 1) {
+          p.pauseVideo?.();
+          setIsPlaying(false);
+        } else {
+          p.playVideo?.();
+          setIsPlaying(true);
+        }
+      }
+      return;
+    }
+    const v = videoRef.current;
+    if (!v) return;
+    if (op === 'seek' && typeof timestamp === 'number') {
+      v.currentTime = timestamp;
+      if (v.paused) v.play().then(() => setIsPlaying(true)).catch(() => {});
+    } else {
+      if (v.paused) {
+        v.play().then(() => setIsPlaying(true)).catch(() => {});
+      } else {
+        v.pause();
         setIsPlaying(false);
       }
     }
   };
 
+  // Seek to specific timestamp (both players)
+  const seekTo = (timestamp: number, stopClipPreview: boolean = true) => {
+    if (stopClipPreview) setActiveClipPreview(null);
+    controlarReproduccion('seek', timestamp);
+  };
+
+  const togglePlay = () => controlarReproduccion('toggle');
+
   // Play clip preview
   const playClipPreview = (clip: ClipItem) => {
     setActiveClipPreview(clip);
-    if (videoRef.current) {
-      videoRef.current.currentTime = clip.inicio_seg;
-      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
-    }
+    controlarReproduccion('seek', clip.inicio_seg);
     toast.info(`Reproduciendo "${clip.titulo_hook}" (${clip.duracion_seg}s)`);
   };
 
@@ -315,8 +473,95 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     }
   };
 
+  // Transcripción REAL por subtítulos de YouTube (proyectos creados con URL de YouTube)
+  const transcribirDesdeYoutube = async () => {
+    if (!proyecto?.url_youtube) return;
+    setTranscribing(true);
+    setProgressPercent(15);
+    setProgressStage('Obteniendo subtítulos reales de YouTube…');
+    setProgressDetail('Buscando transcripción en español (manual o automática)…');
+
+    try {
+      const res = await fetch('/api/youtube/transcribir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: proyecto.url_youtube }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.error || `Error obteniendo subtítulos de YouTube (${res.status})`);
+      }
+
+      setProgressPercent(85);
+      setProgressStage('Guardando transcripción con marcas de tiempo…');
+      setProgressDetail('Indexando segmentos y palabras por segundo…');
+
+      const result = data as TranscriptionPayload;
+      const duracion = Number(result.duration) || proyecto.duracion_seg || 60;
+
+      const updatedProj: Proyecto = {
+        ...proyecto!,
+        estado: 'transcrito',
+        duracion_seg: Math.round(duracion),
+        subtitulos_json: result as any,
+        actualizado_en: new Date().toISOString(),
+      };
+      setProyecto(updatedProj);
+      setTranscriptData(result);
+
+      if (isSupabaseConfigured && user) {
+        try {
+          await (supabase.from('proyectos') as any)
+            .update({
+              estado: 'transcrito',
+              duracion_seg: Math.round(duracion),
+              subtitulos_json: result,
+              actualizado_en: new Date().toISOString(),
+            })
+            .eq('id', effectiveId);
+        } catch (dbErr) {
+          console.warn('Error guardando transcripción YouTube en Supabase:', dbErr);
+        }
+      }
+
+      try {
+        const localData = localStorage.getItem('clipforge_local_proyectos');
+        const list = localData ? JSON.parse(localData) : [];
+        const index = list.findIndex((p: any) => p.id === effectiveId);
+        if (index >= 0) {
+          list[index] = updatedProj;
+        } else {
+          list.push(updatedProj);
+        }
+        localStorage.setItem('clipforge_local_proyectos', JSON.stringify(list));
+      } catch (e) {
+        console.warn('Error guardando en localStorage:', e);
+      }
+
+      setProgressPercent(100);
+      setProgressStage('¡Transcripción completada!');
+      toast.success(
+        `Transcripción real de YouTube obtenida (${result.segments?.length || 0} segmentos)`
+      );
+    } catch (err: any) {
+      console.error('Transcripción YouTube error:', err);
+      toast.error(err.message || 'Error al obtener los subtítulos de YouTube');
+    } finally {
+      setTimeout(() => {
+        setTranscribing(false);
+      }, 800);
+    }
+  };
+
   // Transcription process
   const startTranscription = async () => {
+    // Proyecto de YouTube: usar subtítulos reales en vez de extraer audio del bucket
+    if (esYoutube && proyecto?.url_youtube && !proyecto?.video_url) {
+      await transcribirDesdeYoutube();
+      return;
+    }
+
     setTranscribing(true);
     setProgressPercent(10);
     setProgressStage('Iniciando proceso...');
@@ -494,26 +739,33 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
 
       const data = await response.json();
       const rawClips: ClipItem[] = data.clips || [];
+      if (data?.provider) setAnalyzeProvider(data.provider);
 
       setAnalyzeProgressPercent(80);
-      setAnalyzeProgressStage('Generando miniaturas de vídeo en tiempo real...');
+      setAnalyzeProgressStage('Generando miniaturas de vídeo…');
 
-      // 4. Generar miniaturas de frames
-      const videoSrc = proyecto?.video_url ||
-        (proyecto?.url_youtube 
-          ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' 
-          : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4');
-
-      const clipsWithThumbs = await Promise.all(
-        rawClips.map(async (clip) => {
-          try {
-            const thumb = await captureVideoFrame(videoSrc, clip.inicio_seg + 1);
-            return { ...clip, thumbnail: thumb };
-          } catch {
-            return clip;
-          }
-        })
-      );
+      // 4. Miniaturas: frame real del vídeo (archivos) o miniatura de YouTube (URL)
+      let clipsWithThumbs: ClipItem[] = rawClips;
+      if (esYoutube && videoIdYt) {
+        clipsWithThumbs = rawClips.map((clip) => ({
+          ...clip,
+          thumbnail: `https://i.ytimg.com/vi/${videoIdYt}/hqdefault.jpg`,
+        }));
+      } else {
+        const videoSrc = proyecto?.video_url || '';
+        if (videoSrc) {
+          clipsWithThumbs = await Promise.all(
+            rawClips.map(async (clip) => {
+              try {
+                const thumb = await captureVideoFrame(videoSrc, clip.inicio_seg + 1);
+                return { ...clip, thumbnail: thumb };
+              } catch {
+                return clip;
+              }
+            })
+          );
+        }
+      }
 
       setClips(clipsWithThumbs);
       setSelectedClipIds(new Set(clipsWithThumbs.slice(0, 3).map(c => c.id)));
@@ -600,6 +852,19 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       toast.warning('Selecciona al menos un clip para generar');
       return;
     }
+
+    // Corte real = necesita el archivo de vídeo (mp4). Los proyectos de YouTube
+    // todavía no tienen el mp4 original descargado (YouTube lo bloquea), así que
+    // no podemos generar el archivo cortado sin el original.
+    if (proyecto?.url_youtube && !proyecto?.video_url) {
+      toast.warning(
+        'Para generar los clips en formato vertical se necesita el archivo de vídeo. ' +
+          'Por ahora puedes previsualizar y editar los momentos desde esta pantalla. ' +
+          'El corte desde YouTube estará disponible cuando se habilite la descarga del original (o importa el mp4 con "Subir archivo").'
+      );
+      return;
+    }
+
     toast.success(`Iniciando corte y procesamiento de ${clipIdsToProcess.length} clip(s)...`);
     
     // Save selected clips
@@ -795,11 +1060,15 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
               </div>
 
               <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                Transcribir audio con Whisper Large v3 Turbo
+                {esYoutube
+                  ? 'Obtener transcripción real de YouTube'
+                  : 'Transcribir audio con Whisper Large v3 Turbo'}
               </h2>
 
               <p className="text-sm text-slate-300 leading-relaxed">
-                Extraeremos la pista de audio a 16kHz mono directamente en tu navegador y la procesaremos con el motor Whisper de Groq. Obtendrás marcas de tiempo exactas por palabra, detección de idioma automática y una precisión superior al 98%.
+                {esYoutube
+                  ? 'Leeremos los subtítulos (manuales o automáticos) del vídeo directamente desde YouTube y construiremos la transcripción con marcas de tiempo por palabra, sin necesidad de descargar el vídeo.'
+                  : 'Extraeremos la pista de audio a 16kHz mono directamente en tu navegador y la procesaremos con el motor Whisper de Groq. Obtendrás marcas de tiempo exactas por palabra, detección de idioma automática y una precisión superior al 98%.'}
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-300 pt-2">
@@ -963,6 +1232,33 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
               )}
             </div>
 
+            {/* Transparencia del motor y del origen del vídeo */}
+            {clips.length > 0 && (
+              <div className="flex items-start gap-2.5 text-[11px] rounded-xl px-3.5 py-2.5 border border-purple-900/30 bg-[#0e0e1c]/70 text-slate-300">
+                <Cpu className="w-3.5 h-3.5 mt-0.5 text-purple-400 shrink-0" />
+                <div>
+                  <span className="font-semibold text-white">
+                    Motor de análisis:{' '}
+                    {analyzeProvider === 'groq-llama-3.3'
+                      ? 'Llama 3.3 70B (Groq) + heurística'
+                      : analyzeProvider === 'algorithmic-heuristic'
+                        ? 'Heurístico local (Llama no disponible en este intento)'
+                        : '…'}
+                  </span>
+                  {analyzeProvider === 'algorithmic-heuristic' && (
+                    <span className="text-amber-300/90 block mt-0.5">
+                      ⚠ Los títulos y razones pueden sonar genéricos. Si se repite, el límite gratuito de la IA se agotó o Groq no respondió a tiempo.
+                    </span>
+                  )}
+                  {esYoutube && (
+                    <span className="text-cyan-300/80 block mt-0.5">
+                      Origen: YouTube — aquí se reproduce el vídeo real (en línea). El corte a mp4 requiere el archivo original.
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* PLAYLIST GRID: Video on Left (5 cols) | Cards / Transcript on Right (7 cols) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               
@@ -971,36 +1267,65 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                 <div className="bg-[#121222] border border-purple-900/40 rounded-2xl overflow-hidden shadow-2xl sticky top-6">
                   {/* Video Container */}
                   <div className="relative aspect-video bg-black flex items-center justify-center group">
-                    <video
-                      ref={videoRef}
-                      src={
-                        proyecto?.video_url ||
-                        (proyecto?.url_youtube 
-                          ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' 
-                          : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4')
-                      }
-                      onTimeUpdate={handleTimeUpdate}
-                      onLoadedMetadata={handleLoadedMetadata}
-                      onPlay={() => setIsPlaying(true)}
-                      onPause={() => setIsPlaying(false)}
-                      className="w-full h-full object-contain cursor-pointer"
-                      onClick={togglePlay}
-                    />
+                    {esYoutube ? (
+                      <>
+                        {/* Reproductor REAL de YouTube (el vídeo se ve de verdad) */}
+                        <div
+                          ref={ytContainerRef}
+                          className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full"
+                        />
+                        {!ytApiReadyRef.current && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-slate-300 z-10">
+                            <Youtube className="w-10 h-10 text-red-500 animate-pulse" />
+                            <span className="text-xs font-semibold">Cargando reproductor de YouTube…</span>
+                          </div>
+                        )}
+                        {/* Active Clip Preview Badge */}
+                        {activeClipPreview && (
+                          <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md border border-purple-500/60 px-3 py-1 rounded-lg text-xs font-bold text-pink-300 flex items-center gap-1.5 shadow-lg z-10 pointer-events-none">
+                            <Radio className="w-3.5 h-3.5 text-pink-400 animate-pulse" />
+                            <span>Previsualizando: {activeClipPreview.titulo_hook}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {proyecto?.video_url ? (
+                          <video
+                            ref={videoRef}
+                            src={proyecto.video_url}
+                            onTimeUpdate={handleTimeUpdate}
+                            onLoadedMetadata={handleLoadedMetadata}
+                            onPlay={() => setIsPlaying(true)}
+                            onPause={() => setIsPlaying(false)}
+                            className="w-full h-full object-contain cursor-pointer"
+                            onClick={togglePlay}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-[#0a0a14] text-slate-500">
+                            <FileVideo className="w-12 h-12 opacity-40" />
+                            <span className="text-xs px-6 text-center">
+                              El vídeo aparecerá aquí tras procesarse. Si no se ve, abre el archivo original para reproducirlo.
+                            </span>
+                          </div>
+                        )}
 
-                    {/* Overlay Play/Pause Button */}
-                    <button
-                      onClick={togglePlay}
-                      className="absolute inset-0 m-auto w-14 h-14 rounded-full bg-black/60 hover:bg-purple-600/80 backdrop-blur-md flex items-center justify-center text-white transition-all transform hover:scale-110 opacity-0 group-hover:opacity-100 focus:opacity-100"
-                    >
-                      {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-0.5" />}
-                    </button>
+                        {/* Overlay Play/Pause Button */}
+                        <button
+                          onClick={togglePlay}
+                          className="absolute inset-0 m-auto w-14 h-14 rounded-full bg-black/60 hover:bg-purple-600/80 backdrop-blur-md flex items-center justify-center text-white transition-all transform hover:scale-110 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        >
+                          {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-0.5" />}
+                        </button>
 
-                    {/* Active Clip Preview Badge */}
-                    {activeClipPreview && (
-                      <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md border border-purple-500/60 px-3 py-1 rounded-lg text-xs font-bold text-pink-300 flex items-center gap-1.5 shadow-lg">
-                        <Radio className="w-3.5 h-3.5 text-pink-400 animate-pulse" />
-                        <span>Previsualizando: {activeClipPreview.titulo_hook}</span>
-                      </div>
+                        {/* Active Clip Preview Badge */}
+                        {activeClipPreview && (
+                          <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md border border-purple-500/60 px-3 py-1 rounded-lg text-xs font-bold text-pink-300 flex items-center gap-1.5 shadow-lg">
+                            <Radio className="w-3.5 h-3.5 text-pink-400 animate-pulse" />
+                            <span>Previsualizando: {activeClipPreview.titulo_hook}</span>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 

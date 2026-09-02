@@ -10,8 +10,10 @@ import { createRequire } from 'node:module';
 if (typeof (globalThis as Record<string, unknown>).WebSocket === 'undefined') {
   try {
     const require = createRequire(import.meta.url);
-    const { WebSocket } = require('ws') as { WebSocket: typeof WebSocket };
-    (globalThis as Record<string, unknown>).WebSocket = WebSocket;
+    // Se anota como `unknown` a propósito: no hay @types/ws instalado y escribir
+    // `typeof WebSocket` aquí haría que la anotación se refiera a sí misma (TS2502).
+    const moduloWs = require('ws') as { WebSocket: unknown };
+    (globalThis as Record<string, unknown>).WebSocket = moduloWs.WebSocket;
     console.log('[ClipForge] WebSocket polyfill activado (Node sin WebSocket nativo)');
   } catch (err) {
     console.warn('[ClipForge] No se pudo cargar ws para el polyfill de WebSocket:', err);

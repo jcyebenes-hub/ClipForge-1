@@ -5,6 +5,7 @@
  */
 
 import { IDIOMAS_DISPONIBLES, EntradaSubtituloJSON, traducirEntradasFallback } from '@/src/lib/traduccion';
+import { completarConGroq } from '@/src/lib/groqChat';
 
 export interface TraducirApiRequest {
   clip_id: string;
@@ -96,32 +97,18 @@ REGLAS OBLIGATORIAS:
 JSON de entrada:
 ${JSON.stringify(entradasAProcesar, null, 2)}`;
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
-
-        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${groqApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
-            temperature: 0.1,
-            response_format: { type: 'json_object' },
-          }),
-          signal: controller.signal,
+        const llm = await completarConGroq({
+          apiKey: groqApiKey,
+          temperature: 0.1,
+          json: true,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
         });
 
-        clearTimeout(timeoutId);
-
-        if (groqResponse.ok) {
-          const aiJson = await groqResponse.json();
-          const rawContent = aiJson.choices?.[0]?.message?.content || '{}';
+        if (llm.ok) {
+          const rawContent = llm.content || '{}';
 
           let parsedEntradas: EntradaSubtituloJSON[] = [];
           try {
@@ -160,7 +147,7 @@ ${JSON.stringify(entradasAProcesar, null, 2)}`;
                 idioma: idiomaInfo.codigo,
                 subtitulos: finalSubtitulos,
                 provider: 'groq-llama-3.3',
-                mensaje: `Subtítulos traducidos exitosamente a ${idiomaInfo.nombre} con Llama 3.3 70B`,
+                mensaje: `Subtítulos traducidos exitosamente a ${idiomaInfo.nombre} con Groq (${llm.model})`,
               }),
               { status: 200, headers: { 'Content-Type': 'application/json' } }
             );

@@ -127,6 +127,7 @@ function generarAnalisisAlgoritmico(
 
 import { verificarRateLimit, obtenerIpDeRequest } from '@/src/lib/rateLimit';
 import { sanitizarTitulo, sanitizarDescripcion } from '@/src/lib/sanitizer';
+import { completarConGroq } from '@/src/lib/groqChat';
 
 /**
  * Preselecciona un máximo de `max` ventanas repartidas en el tiempo y con mejor
@@ -267,13 +268,11 @@ export async function POST(request: Request) {
 
     const groqApiKey = process.env.GROQ_API_KEY;
 
-    // Si hay API key de Groq, invocamos llama-3.3-70b-versatile con timeout de 90s.
+    // Si hay API key de Groq, evaluamos con el LLM (cadena de modelos en groqChat.ts, 90s).
     // Para no saturar el prompt (ni el presupuesto gratis), solo enviamos un
     // subconjunto diverso de ventanas (máx 16).
     if (groqApiKey && ventanas.length > 0) {
       const ventanasIA = preseleccionarVentanasDiversas(ventanas, 16);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
       try {
         const ventanasPromptPayload = ventanasIA.map((v) => ({
@@ -305,29 +304,19 @@ Debes responder ÚNICAMENTE un array JSON válido con la siguiente estructura ex
 
         const userPrompt = `Evalúa las siguientes ventanas de audio:\n${JSON.stringify(ventanasPromptPayload, null, 2)}`;
 
-        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${groqApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
-            temperature: 0.2,
-            response_format: { type: 'json_object' },
-          }),
-          signal: controller.signal,
+        const llm = await completarConGroq({
+          apiKey: groqApiKey,
+          temperature: 0.2,
+          json: true,
+          timeoutMs: 90000,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
         });
 
-        clearTimeout(timeoutId);
-
-        if (groqResponse.ok) {
-          const aiJson = await groqResponse.json();
-          const rawContent = aiJson.choices?.[0]?.message?.content || '';
+        if (llm.ok) {
+          const rawContent = llm.content || '';
           
           const parsedEvaluations = extraerArrayEvaluaciones(rawContent);
 
@@ -379,16 +368,10 @@ Debes responder ÚNICAMENTE un array JSON válido con la siguiente estructura ex
             );
           }
         } else {
-          const errText = await groqResponse.text();
-          console.warn(`[Groq Llama 3.3] Status ${groqResponse.status}: ${errText}`);
+          console.warn(`[Groq LLM] Sin respuesta válida (status ${llm.status}); uso heurística local.`);
         }
       } catch (llmError: any) {
-        clearTimeout(timeoutId);
-        if (llmError.name === 'AbortError') {
-          console.warn('[Groq Llama 3.3 API] La llamada de análisis excedió 60s y fue cancelada.');
-        } else {
-          console.error('Groq Llama 3.3 execution failed, falling back:', llmError);
-        }
+        console.error('Groq LLM execution failed, falling back:', llmError);
       }
     }
 

@@ -5,6 +5,8 @@
  * y actualiza la tabla 'clips' en Supabase y/o devuelve el resultado estructurado.
  */
 
+import { completarConGroq } from '@/src/lib/groqChat';
+
 export interface HooksApiRequest {
   clip_id: string;
   proyecto_id?: string;
@@ -151,32 +153,18 @@ Reglas estrictas:
 
         const userPrompt = `Transcripción del clip:\n"${textoTranscrito}"\n\nTítulo actual: "${titulo_actual || ''}"\nDuración: ${duracion_seg || 30}s`;
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
-
-        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${groqApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
-            temperature: 0.3,
-            response_format: { type: 'json_object' },
-          }),
-          signal: controller.signal,
+        const llm = await completarConGroq({
+          apiKey: groqApiKey,
+          temperature: 0.3,
+          json: true,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
         });
 
-        clearTimeout(timeoutId);
-
-        if (groqResponse.ok) {
-          const aiJson = await groqResponse.json();
-          const rawContent = aiJson.choices?.[0]?.message?.content || '{}';
+        if (llm.ok) {
+          const rawContent = llm.content || '{}';
           const parsed = JSON.parse(rawContent);
 
           const titulos = Array.isArray(parsed.titulo_gancho)
@@ -207,7 +195,7 @@ Reglas estrictas:
             descripcion,
             mejor_momento_primera_frase: primeraFrase,
             provider: 'groq-llama-3.3',
-            mensaje: 'Hooks y metadatos virales generados con Llama 3.3 70B.',
+            mensaje: `Hooks y metadatos virales generados con Groq (${llm.model}).`,
           };
 
           return new Response(JSON.stringify(responseData), {
@@ -215,7 +203,7 @@ Reglas estrictas:
             headers: { 'Content-Type': 'application/json' },
           });
         } else {
-          console.warn('Groq response not ok:', await groqResponse.text());
+          console.warn(`[Groq LLM] Sin respuesta válida en /api/hooks (status ${llm.status}); uso heurística.`);
         }
       } catch (llmErr) {
         console.error('Groq Llama 3.3 call error in /api/hooks:', llmErr);

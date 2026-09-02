@@ -1,0 +1,9 @@
+name = "clipforge-yt-captions"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+# Despliegue por CLI:
+#   npx wrangler login
+#   npx wrangler deploy
+# Secreto opcional (recomendado):
+#   npx wrangler secret put WORKER_SECRET

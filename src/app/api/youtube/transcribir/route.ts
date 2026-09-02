@@ -74,9 +74,14 @@ async function transcribirViaWorker(url: string): Promise<{ payload?: any; error
   const workerUrl = process.env.YT_CAPTIONS_WORKER_URL || '';
   if (!workerUrl) return { error: 'YT_CAPTIONS_WORKER_URL no configurado', code: 'NO_WORKER' };
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    // Secreto compartido opcional: si el Worker define WORKER_SECRET, la app debe
+    // enviar la misma clave en YT_CAPTIONS_WORKER_SECRET para autorizarse.
+    const secret = process.env.YT_CAPTIONS_WORKER_SECRET || '';
+    if (secret) headers['x-worker-secret'] = secret;
     const res = await fetch(`${workerUrl.replace(/\/+$/, '')}/transcribir`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ url }),
       signal: AbortSignal.timeout(60000),
     });

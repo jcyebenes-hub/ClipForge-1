@@ -554,6 +554,87 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     }
   };
 
+  // Alternativa "estilo CapCut": si el vídeo de YouTube no tiene subtítulos (o YouTube
+  // bloquea al servidor), el usuario sube el archivo y generamos la transcripción con Whisper.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const transcribirDesdeArchivo = async (file: File) => {
+    setTranscribing(true);
+    setProgressPercent(15);
+    setProgressStage('Subiendo archivo y transcribiendo con Whisper…');
+    setProgressDetail('Puede tardar según la duración del audio…');
+
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('language', 'es');
+      if (user) fd.append('user_id', user.id);
+
+      const res = await fetch('/api/transcribir', { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || `Error transcribiendo el archivo (${res.status})`);
+      }
+
+      setProgressPercent(85);
+      setProgressStage('Guardando transcripción con marcas de tiempo…');
+      setProgressDetail('Indexando segmentos y palabras por segundo…');
+
+      const result = data as TranscriptionPayload;
+      const duracion = Number(result.duration) || proyecto?.duracion_seg || 60;
+
+      const updatedProj: Proyecto = {
+        ...proyecto!,
+        estado: 'transcrito',
+        duracion_seg: Math.round(duracion),
+        subtitulos_json: result as any,
+        actualizado_en: new Date().toISOString(),
+      };
+      setProyecto(updatedProj);
+      setTranscriptData(result);
+
+      if (isSupabaseConfigured && user) {
+        try {
+          await (supabase.from('proyectos') as any)
+            .update({
+              estado: 'transcrito',
+              duracion_seg: Math.round(duracion),
+              subtitulos_json: result,
+              actualizado_en: new Date().toISOString(),
+            })
+            .eq('id', effectiveId);
+        } catch (dbErr) {
+          console.warn('Error guardando transcripción (archivo) en Supabase:', dbErr);
+        }
+      }
+
+      try {
+        const localData = localStorage.getItem('clipforge_local_proyectos');
+        const list = localData ? JSON.parse(localData) : [];
+        const index = list.findIndex((p: any) => p.id === effectiveId);
+        if (index >= 0) {
+          list[index] = updatedProj;
+        } else {
+          list.push(updatedProj);
+        }
+        localStorage.setItem('clipforge_local_proyectos', JSON.stringify(list));
+      } catch (e) {
+        console.warn('Error guardando en localStorage:', e);
+      }
+
+      setProgressPercent(100);
+      setProgressStage('¡Transcripción completada!');
+      toast.success(`Transcripción generada con Whisper (${result.segments?.length || 0} segmentos)`);
+    } catch (err: any) {
+      console.error('Transcripción desde archivo error:', err);
+      toast.error(err.message || 'Error al transcribir el archivo');
+    } finally {
+      setTimeout(() => {
+        setTranscribing(false);
+      }, 800);
+    }
+  };
+
   // Transcription process
   const startTranscription = async () => {
     // Proyecto de YouTube: usar subtítulos reales en vez de extraer audio del bucket
@@ -1111,14 +1192,39 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                   </p>
                 </div>
               ) : (
-                <button
-                  id="transcribir-audio-btn"
-                  onClick={startTranscription}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 rounded-xl text-sm font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/30 hover:shadow-purple-600/50 transition-all transform hover:-translate-y-0.5 cursor-pointer"
-                >
-                  <Volume2 className="w-5 h-5 text-cyan-300" />
-                  <span>🔊 Transcribir audio</span>
-                </button>
+                <div className="flex flex-col sm:flex-row flex-wrap gap-3">
+                  <button
+                    id="transcribir-audio-btn"
+                    onClick={startTranscription}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 rounded-xl text-sm font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/30 hover:shadow-purple-600/50 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+                  >
+                    <Volume2 className="w-5 h-5 text-cyan-300" />
+                    <span>🔊 Transcribir audio</span>
+                  </button>
+
+                  {esYoutube && (
+                    <>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="audio/*,video/*,.mp3,.mp4,.m4a,.wav,.webm,.mov"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) transcribirDesdeArchivo(f);
+                          e.target.value = '';
+                        }}
+                      />
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-6 py-4 rounded-xl text-sm font-bold bg-[#0e0e1c] border border-purple-700/50 text-purple-200 hover:bg-[#15152a] hover:border-purple-500/60 transition-all cursor-pointer"
+                        title="Si el vídeo no tiene subtítulos o YouTube bloquea al servidor, sube el archivo y lo transcribimos con Whisper"
+                      >
+                        <span>📁 ¿Sin subtítulos? Sube el vídeo/audio</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           </div>

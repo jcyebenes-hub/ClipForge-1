@@ -105,51 +105,8 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
         }
       });
 
-      // Default mock if totally empty to showcase the feature
-      if (combined.length === 0) {
-        combined.push(
-          {
-            id: 'mock-pub-1',
-            clip_id: 'c1',
-            plataforma: 'youtube',
-            titulo: 'El Secreto de la Retención en Vídeos Cortos #Shorts',
-            descripcion: 'Aplica este gancho de 3 segundos para duplicar tus visitas.',
-            hashtags: ['#Shorts', '#Viral', '#Tips'],
-            video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-            duracion_seg: 28,
-            fecha_programada: new Date(Date.now() + 3600 * 1000 * 24).toISOString(),
-            estado: 'programado',
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 'mock-pub-2',
-            clip_id: 'c2',
-            plataforma: 'tiktok',
-            titulo: '3 Hacks de Edición en 2026',
-            descripcion: 'Plantillas y subtítulos que convierten.',
-            hashtags: ['#TikTokViral', '#Edicion', '#ClipForge'],
-            video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-            duracion_seg: 35,
-            fecha_programada: new Date(Date.now() - 3600 * 1000 * 5).toISOString(),
-            estado: 'publicado',
-            url_publicacion: 'https://www.tiktok.com/@clipforge_ai',
-            created_at: new Date(Date.now() - 3600 * 1000 * 6).toISOString(),
-          },
-          {
-            id: 'mock-pub-3',
-            clip_id: 'c3',
-            plataforma: 'instagram',
-            titulo: 'Cómo crecer de 0 a 100k seguidores',
-            descripcion: 'Reel explicativo paso a paso.',
-            hashtags: ['#ReelsInstagram', '#Creator', '#Viral'],
-            video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-            duracion_seg: 42,
-            fecha_programada: new Date(Date.now() + 3600 * 1000 * 48).toISOString(),
-            estado: 'programado',
-            created_at: new Date().toISOString(),
-          }
-        );
-      }
+      // Sin datos reales no inventamos publicaciones de ejemplo: la vista ya
+      // muestra su estado vacío ("No se encontraron publicaciones").
 
       setPublicaciones(combined);
     } finally {

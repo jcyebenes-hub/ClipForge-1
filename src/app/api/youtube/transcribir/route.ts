@@ -13,6 +13,7 @@
  */
 
 import { sanitizarTitulo } from '@/src/lib/sanitizer';
+import { logEventoServer } from '@/src/lib/telemetria';
 import {
   probarClientes,
   fetchVttCapitulos,
@@ -258,7 +259,10 @@ export async function POST(request: Request) {
     for (let intento = 1; intento <= INTENTOS; intento++) {
       // Capa 1: intento directo
       const directo = await transcribirDirecto(url, videoId, debug);
-      if (directo.status === 200) return directo;
+      if (directo.status === 200) {
+        logEventoServer('transcripcion_youtube', { video_id: videoId, via: 'directo' });
+        return directo;
+      }
       const directoJson = await directo.json().catch(() => ({}));
       if (directoJson?.code === 'YT_BOT_BLOCKED') youtubeBloqueado = true;
       finalJson = directoJson;
@@ -268,6 +272,7 @@ export async function POST(request: Request) {
       if (process.env.YT_CAPTIONS_WORKER_URL) {
         const workerRes = await transcribirViaWorker(url);
         if (workerRes.payload) {
+          logEventoServer('transcripcion_youtube', { video_id: videoId, via: 'worker' });
           return new Response(JSON.stringify(workerRes.payload), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -300,6 +305,10 @@ export async function POST(request: Request) {
     if (finalJson && typeof finalJson === 'object' && youtubeBloqueado) {
       finalJson = { ...finalJson, bloqueado_por_youtube: true };
     }
+    logEventoServer(
+      youtubeBloqueado ? 'youtube_bloqueado' : 'youtube_fallo',
+      { video_id: videoId, code: finalJson?.code || null }
+    );
     return new Response(JSON.stringify(finalJson), {
       status: finalStatus,
       headers: { 'Content-Type': 'application/json' },

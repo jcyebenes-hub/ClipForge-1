@@ -125,6 +125,7 @@ export function generateRealisticTranscription(duracionSeg: number = 180): Trans
 
 import { verificarRateLimit, obtenerIpDeRequest } from '@/src/lib/rateLimit';
 import { sanitizarTitulo } from '@/src/lib/sanitizer';
+import { logEventoServer } from '@/src/lib/telemetria';
 
 export async function POST(request: Request) {
   try {
@@ -240,6 +241,7 @@ export async function POST(request: Request) {
             provider: 'groq-whisper',
           };
 
+          logEventoServer('transcripcion_whisper', { provider: 'groq-whisper' });
           return new Response(JSON.stringify(responsePayload), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -261,6 +263,7 @@ export async function POST(request: Request) {
 
     // Fallback: return high quality structured transcript
     const fallbackTranscript = generateRealisticTranscription(120);
+    logEventoServer('transcripcion_whisper_fallback', { provider: 'simulated-fallback' });
     return new Response(JSON.stringify(fallbackTranscript), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },

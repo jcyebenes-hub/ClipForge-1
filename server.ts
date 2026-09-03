@@ -34,6 +34,7 @@ import { GET as youtubeInfoGET, POST as youtubeInfoPOST } from './src/app/api/yo
 import { POST as youtubeTranscribirPOST } from './src/app/api/youtube/transcribir/route';
 import { GET as youtubeProbeGET } from './src/app/api/youtube/probe/route';
 import { GET as youtubeDebugGET } from './src/app/api/youtube/debug/route';
+import { GET as adminUsoGET } from './src/app/api/admin/uso/route';
 import { GET as youtubeAuthGET } from './src/app/api/youtube/auth/route';
 import { GET as youtubeCallbackGET } from './src/app/api/youtube/callback/route';
 import { POST as youtubeUploadPOST } from './src/app/api/youtube/upload/route';
@@ -126,6 +127,7 @@ app.get(`${api}/youtube/info`, adapt(youtubeInfoGET));
 app.post(`${api}/youtube/info`, adapt(youtubeInfoPOST));
 app.post(`${api}/youtube/transcribir`, adapt(youtubeTranscribirPOST));
 app.get(`${api}/youtube/probe`, adapt(youtubeProbeGET));
+app.get(`${api}/admin/uso`, adapt(adminUsoGET));
 app.get(`${api}/youtube/debug`, adapt(youtubeDebugGET));
 app.get(`${api}/youtube/auth`, adapt(youtubeAuthGET));
 app.get(`${api}/youtube/callback`, adapt(youtubeCallbackGET));

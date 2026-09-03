@@ -40,88 +40,8 @@ export interface TranscriptionResponse {
 /**
  * Genera transcripción con marcas de tiempo realistas para desarrollo o fallback
  */
-export function generateRealisticTranscription(duracionSeg: number = 180): TranscriptionResponse {
-  const sampleParagraphs = [
-    {
-      text: "Bienvenidos a este episodio especial donde vamos a desglosar exactamente cómo estructurar contenido de alta retención para TikTok, Instagram Reels y YouTube Shorts.",
-      duration: 8.5,
-    },
-    {
-      text: "El primer error que comete el 99% de los creadores es tardar más de 3 segundos en lanzar el gancho principal. Si no capturas la atención en los primeros 2 segundos, el usuario desliza y el algoritmo penaliza tu vídeo.",
-      duration: 12.2,
-    },
-    {
-      text: "Para solucionar esto, aplicamos la regla de oro: pregunta provocativa, cambio de plano visual inmediato y subtítulos dinámicos de alto contraste con una sola palabra clave destacada en color amarillo o cian.",
-      duration: 13.8,
-    },
-    {
-      text: "Cuando combinas este formato 9:16 con cortes automáticos en los silencios, la tasa de retención sube por encima del 85%. Eso es lo que activa el motor viral de las plataformas.",
-      duration: 11.5,
-    },
-    {
-      text: "En este vídeo vamos a procesar todo el metraje, extraer los mejores momentos, puntuarlos con un viral score y generar los clips listos para publicar con un solo clic.",
-      duration: 10.4,
-    },
-    {
-      text: "Fíjate en este ejemplo: al eliminar las pausas y enfatizar las palabras clave, el ritmo se vuelve adictivo. Cada segundo cuenta y ningún espectador pierde el interés.",
-      duration: 9.6,
-    }
-  ];
-
-  let currentTime = 0.5;
-  const segments: TranscriptionSegment[] = [];
-  const allWords: TranscriptionWord[] = [];
-  let fullText = "";
-
-  let segIndex = 0;
-  while (currentTime < duracionSeg && segIndex < 30) {
-    const template = sampleParagraphs[segIndex % sampleParagraphs.length];
-    const segStart = Number(currentTime.toFixed(2));
-    const segDuration = template.duration;
-    const segEnd = Number((currentTime + segDuration).toFixed(2));
-    
-    const wordsInText = template.text.split(' ');
-    const wordDuration = segDuration / wordsInText.length;
-    
-    const segWords: TranscriptionWord[] = [];
-    let wordTime = segStart;
-    
-    for (const w of wordsInText) {
-      const wStart = Number(wordTime.toFixed(2));
-      const wEnd = Number((wordTime + wordDuration * 0.95).toFixed(2));
-      const wordObj: TranscriptionWord = {
-        word: w,
-        start: wStart,
-        end: wEnd,
-      };
-      segWords.push(wordObj);
-      allWords.push(wordObj);
-      wordTime += wordDuration;
-    }
-
-    segments.push({
-      id: segIndex,
-      start: segStart,
-      end: segEnd,
-      text: template.text,
-      words: segWords,
-    });
-
-    fullText += (fullText ? ' ' : '') + template.text;
-    currentTime = segEnd + 0.4;
-    segIndex++;
-  }
-
-  return {
-    task: "transcribe",
-    language: "spanish",
-    duration: currentTime,
-    text: fullText,
-    segments,
-    words: allWords,
-    provider: "simulated-fallback",
-  };
-}
+// (eliminado) generateRealisticTranscription: generaba transcripciones FICTICIAS y se
+// devolvían como reales. Si Groq falla, la ruta ahora devuelve un error honesto.
 
 import { verificarRateLimit, obtenerIpDeRequest } from '@/src/lib/rateLimit';
 import { sanitizarTitulo } from '@/src/lib/sanitizer';
@@ -177,6 +97,14 @@ export async function POST(request: Request) {
             'Retry-After': String(rateCheck.reseteoEnSegundos),
           },
         }
+      );
+    }
+
+    // Sin audio no hay nada que transcribir: error claro (antes caía al fallback falso).
+    if (!audioBlob || audioBlob.size === 0) {
+      return new Response(
+        JSON.stringify({ error: 'No se recibió ningún archivo de audio para transcribir.', code: 'SIN_AUDIO' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
@@ -261,19 +189,22 @@ export async function POST(request: Request) {
       }
     }
 
-    // Fallback: return high quality structured transcript
-    const fallbackTranscript = generateRealisticTranscription(120);
-    logEventoServer('transcripcion_whisper_fallback', { provider: 'simulated-fallback' });
-    return new Response(JSON.stringify(fallbackTranscript), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    // Groq no disponible, falló o dio timeout: NO inventamos una transcripción.
+    // Devolvemos un error claro para que el usuario lo sepa y pueda reintentar.
+    logEventoServer('transcripcion_whisper_fallo', { motivo: 'groq_no_disponible_o_fallo' });
+    return new Response(
+      JSON.stringify({
+        error: 'No se pudo transcribir el audio en este momento. Inténtalo de nuevo en unos instantes.',
+        code: 'TRANSCRIPCION_NO_DISPONIBLE',
+      }),
+      { status: 503, headers: { 'Content-Type': 'application/json' } }
+    );
   } catch (err: any) {
     console.error('Error in /api/transcribir:', err);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: err.message || 'Error al procesar transcripción',
-        fallback: generateRealisticTranscription(60),
+        code: 'TRANSCRIPCION_ERROR',
       }),
       {
         status: 500,

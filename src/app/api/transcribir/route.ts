@@ -34,7 +34,7 @@ export interface TranscriptionResponse {
   text: string;
   segments: TranscriptionSegment[];
   words: TranscriptionWord[];
-  provider?: 'groq-whisper' | 'simulated-fallback';
+  provider?: 'groq-whisper';
 }
 
 /**

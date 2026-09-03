@@ -42,8 +42,20 @@ _Última actualización: 2026-09-03. Verificado contra el código y producción.
 - [ ] Verificar que los eventos entran + montar una vista para verlos (o usar el Table Editor de Supabase). _Nota: ver el agregado de TODOS los usuarios requiere la `service_role` (no está configurada)._
 
 ### P3 — Rendimiento / deuda técnica
-- [ ] **Code-split** del bundle de la página de proyecto (414 KB / 119 KB gzip).
-- [ ] **Cold-start** de Render (el dyno gratuito duerme; primer request lento). Opción: keep-alive externo.
+- [x] **Análisis de bundle (corregido):** el chunk de 414 KB es la página de *estadísticas* (recharts), **no** la de proyecto. Las rutas ya son `lazy` y las libs pesadas (recharts, ffmpeg, mediapipe) van en chunks separados bajo demanda. El coste inicial real es react+supabase (~200 KB gzip, núcleo inevitable) → el code-split ya está bien; no tocar sin necesidad.
+- [~] **Cold-start:** `/health` existe y responde, pero tardó **22 s en frío**. El arreglo es un keep-alive que pique `/health` cada ~10 min. Preparé el workflow, **pero el PAT actual no tiene scope `workflow`** (GitHub bloquea subir `.github/workflows/*` sin él). → Añadirlo por la UI de GitHub (repo → Add file → pegar esto en `.github/workflows/keepalive.yml`) o con un PAT con scope `workflow`. Al ser repo público, el cron corre fiable y mantiene el dyno despierto:
+  ```yaml
+  name: keepalive
+  on:
+    schedule: [{ cron: '*/10 * * * *' }]
+    workflow_dispatch: {}
+  jobs:
+    ping:
+      runs-on: ubuntu-latest
+      steps:
+        - run: curl -s -o /dev/null -w '%{http_code}\n' --max-time 60 https://clipforge-7hdq.onrender.com/health || true
+  ```
+- [ ] **recharts** (414 KB en estadísticas): posible futuro cambio a gráficos SVG propios. Baja prioridad (ya es lazy).
 - [ ] Claves de YouTube hardcodeadas en `youtubeApi.ts` (públicas, pero YouTube las rota).
 
 ### P4 — Monetización (cuando haya tracción)

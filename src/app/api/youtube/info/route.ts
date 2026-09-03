@@ -138,21 +138,6 @@ export async function fetchYoutubeInfo(url: string): Promise<YoutubeInfoResponse
   return info;
 }
 
-// Mantenemos la firma de datos "de prueba" exportada por compatibilidad con otros
-// módulos que la importen, pero ya NO se usa en el flujo real.
-export function getMockYoutubeInfo(url: string): YoutubeInfoResponse {
-  const videoId = extractYoutubeId(url) || 'dQw4w9WgXcQ';
-  return {
-    titulo: 'Video de YouTube',
-    autor: 'Canal de YouTube',
-    duracion_seg: 0,
-    miniatura: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-    videoId,
-    embeddable: true,
-    fuente: 'mock',
-  };
-}
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url') || '';

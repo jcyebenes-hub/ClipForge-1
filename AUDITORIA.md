@@ -33,7 +33,7 @@ _Última actualización: 2026-09-03. Verificado contra el código y producción.
 ## 📋 Backlog priorizado
 
 ### P1 — Experiencia YouTube
-- [ ] **Decidir el POT**: el bloqueo de YouTube es intermitente (en una prueba, 1 de 3 intentos pasó). Hacer un test de 10-15 intentos para decidir si el POT ayuda o se quita (añade latencia).
+- [x] **POT decidido → ELIMINADO.** Datos reales: el proveedor POT tardaba 14-22 s por intento (dyno frío) y **no** libraba del bloqueo (0 éxitos con él, todo timeout >150 s). Sin POT, la transcripción volvió a ~30-80 s y con mejor tasa (2/3 en prueba). Reversible: re-añadir la var `POT_PROVIDER_URL` en Render.
 - [ ] **Fase 2 — proxy residencial (~$5/mes)**: arreglo real del bloqueo. Habilita además descargar audio + Whisper server-side (el usuario no sube nada). _Necesita decisión + gasto._
 
 ### P2 — Analíticas de uso real

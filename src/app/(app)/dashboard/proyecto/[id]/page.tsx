@@ -33,10 +33,11 @@ import {
   ChevronRight,
   TrendingUp,
   Radio,
-  Upload
+  Upload,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../../../../../context/AuthContext';
-import { supabase } from '../../../../../lib/supabase/client';
+import { supabase, getSupabaseEnv } from '../../../../../lib/supabase/client';
 import type { Proyecto, Clip } from '../../../../../lib/supabase/types';
 import { extract16kHzAudio } from '../../../../../lib/audioExtractor';
 import { generarVentanasTemporales, calcularHeuristicasVentanas } from '../../../../../lib/audioHeuristics';
@@ -175,6 +176,10 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const [subiendoOriginal, setSubiendoOriginal] = useState(false);
   const [enlaceCopiado, setEnlaceCopiado] = useState(false);
   const [arrastrandoVideo, setArrastrandoVideo] = useState(false);
+  const [progresoSubida, setProgresoSubida] = useState(0);
+  const [errorSubida, setErrorSubida] = useState('');
+  const [archivoSubiendo, setArchivoSubiendo] = useState<File | null>(null);
+  const [avisoSubida, setAvisoSubida] = useState('');
   // Aviso cuando YouTube no nos deja leer los subtítulos (IP bloqueada o vídeo sin subs).
   // Sirve para mostrar un mensaje claro y empujar la subida del archivo (Whisper).
   const [ytBlock, setYtBlock] = useState<{ tipo: 'bloqueado' | 'sin_subtitulos'; mensaje: string } | null>(null);
@@ -1228,65 +1233,141 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   // descargar los clips. YouTube no permite descargarlo desde el servidor, así que el
   // usuario lo obtiene por su cuenta (p. ej. en un descargador) y lo sube aquí; se guarda
   // como {user}/{proyecto}/original.mp4, que es lo que usa la página de clips para cortar.
-  const subirVideoOriginal = async (file: File) => {
+  // Traduce los errores de Supabase Storage a mensajes que se puedan entender y actuar
+  const explicarErrorSubida = (status: number, texto: string): string => {
+    const t = (texto || '').toLowerCase();
+    if (t.includes('maximum allowed size') || t.includes('too large') || t.includes('entity too large')) {
+      return 'El archivo supera el tamaño máximo del almacenamiento (50 MB por defecto). Elige en el descargador una calidad menor (p. ej. 720p) o un vídeo más corto e inténtalo otra vez.';
+    }
+    if (t.includes('row-level security') || t.includes('accessdenied') || t.includes('unauthorized') || status === 401 || status === 403) {
+      return 'Tu sesión no tiene permiso para guardar en esta carpeta. Recarga la página, vuelve a iniciar sesión e inténtalo de nuevo.';
+    }
+    if (t.includes('bucket not found') || t.includes('nosuchbucket')) {
+      return 'Falta el espacio de almacenamiento "media" en Supabase (hay que crearlo).';
+    }
+    if (status === 0 || t.includes('failed to fetch') || t.includes('networkerror') || t.includes('network')) {
+      return 'Se cortó la conexión durante la subida (vídeo grande o red inestable). Vuelve a intentarlo.';
+    }
+    if (t.includes('timeout')) {
+      return 'La subida tardó demasiado y se canceló. Prueba con un archivo más pequeño.';
+    }
+    return texto ? `Error al subir (${texto.slice(0, 200)})` : 'Error al subir el vídeo.';
+  };
+
+  const subirVideoOriginal = (file: File) => {
     if (!isSupabaseConfigured || !user) {
-      toast.error('Necesitas iniciar sesión (y Supabase configurado) para subir el vídeo.');
+      const msg = 'Necesitas iniciar sesión (y Supabase configurado) para subir el vídeo.';
+      setErrorSubida(msg);
+      toast.error(msg);
       return;
     }
+
+    const mb = file.size / (1024 * 1024);
+    setErrorSubida('');
+    setAvisoSubida(
+      mb > 50
+        ? `Ojo: el archivo pesa ${mb.toFixed(1)} MB y el límite habitual es 50 MB. Si da error, elige 720p en el descargador.`
+        : ''
+    );
+    setArchivoSubiendo(file);
     setSubiendoOriginal(true);
-    try {
-      const storagePath = `${user.id}/${effectiveId}/original.mp4`;
-      const { error } = await supabase.storage
-        .from('media')
-        .upload(storagePath, file, { upsert: true, contentType: file.type || 'video/mp4' });
-      if (error) throw error;
+    setProgresoSubida(0);
 
-      let videoUrl = '';
+    const { supabaseUrl, supabaseAnonKey } = getSupabaseEnv();
+    const storagePath = `${user.id}/${effectiveId}/original.mp4`;
+
+    (async () => {
       try {
-        const { data: signed } = await supabase.storage
-          .from('media')
-          .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-        videoUrl = signed?.signedUrl || '';
-      } catch {}
+        const { data: sesion } = await supabase.auth.getSession();
+        const token = sesion?.session?.access_token;
+        if (!token) throw new Error('__SESION__');
 
-      const updatedProj: Proyecto = {
-        ...proyecto!,
-        archivo_nombre: file.name,
-        video_url: videoUrl || proyecto?.video_url,
-        actualizado_en: new Date().toISOString(),
-      };
-      setProyecto(updatedProj);
+        // Subida por XMLHttpRequest en vez del SDK: así podemos leer el progreso real
+        // (xhr.upload.onprogress) y mostrar el porcentaje mientras se sube.
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', `${supabaseUrl}/storage/v1/object/media/${storagePath}`);
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          xhr.setRequestHeader('apikey', supabaseAnonKey);
+          xhr.setRequestHeader('x-upsert', 'true');
+          xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) setProgresoSubida(Math.round((e.loaded / e.total) * 100));
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(`${xhr.status}::${xhr.responseText || ''}`));
+          };
+          xhr.onerror = () => reject(new Error('__RED__'));
+          xhr.ontimeout = () => reject(new Error('__TIMEOUT__'));
+          xhr.send(file);
+        });
 
-      try {
-        await (supabase.from('proyectos') as any)
-          .update({
-            archivo_nombre: file.name,
-            video_url: videoUrl || undefined,
-            actualizado_en: new Date().toISOString(),
-          })
-          .eq('id', effectiveId);
-      } catch (dbErr) {
-        console.warn('Error guardando vídeo original en Supabase:', dbErr);
+        setProgresoSubida(100);
+
+        let videoUrl = '';
+        try {
+          const { data: signed } = await supabase.storage
+            .from('media')
+            .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+          videoUrl = signed?.signedUrl || '';
+        } catch {}
+
+        const updatedProj: Proyecto = {
+          ...proyecto!,
+          archivo_nombre: file.name,
+          video_url: videoUrl || proyecto?.video_url,
+          actualizado_en: new Date().toISOString(),
+        };
+        setProyecto(updatedProj);
+
+        try {
+          await (supabase.from('proyectos') as any)
+            .update({
+              archivo_nombre: file.name,
+              video_url: videoUrl || undefined,
+              actualizado_en: new Date().toISOString(),
+            })
+            .eq('id', effectiveId);
+        } catch (dbErr) {
+          console.warn('Error guardando vídeo original en Supabase:', dbErr);
+        }
+
+        try {
+          const localData = localStorage.getItem('clipforge_local_proyectos');
+          const list = localData ? JSON.parse(localData) : [];
+          const index = list.findIndex((p: any) => p.id === effectiveId);
+          if (index >= 0) list[index] = updatedProj;
+          else list.push(updatedProj);
+          localStorage.setItem('clipforge_local_proyectos', JSON.stringify(list));
+        } catch {}
+
+        setPidiendoVideoOriginal(false);
+        setArchivoSubiendo(null);
+        toast.success('Vídeo subido. Ahora puedes cortar y descargar los clips.');
+        if (onNavigate) onNavigate(`/dashboard/proyecto/${effectiveId}/clips`);
+        else window.location.assign(`/dashboard/proyecto/${effectiveId}/clips`);
+      } catch (err: any) {
+        console.error('Error subiendo vídeo original:', err);
+        const raw = String(err?.message || err || '');
+        let msg = '';
+        if (raw === '__SESION__') {
+          msg = 'Tu sesión ha caducado. Recarga la página, vuelve a iniciar sesión e inténtalo otra vez.';
+        } else if (raw === '__RED__') {
+          msg = explicarErrorSubida(0, 'network');
+        } else if (raw === '__TIMEOUT__') {
+          msg = explicarErrorSubida(0, 'timeout');
+        } else {
+          const [statusStr, ...resto] = raw.split('::');
+          const status = Number(statusStr) || 0;
+          msg = explicarErrorSubida(status, resto.join('::') || raw);
+        }
+        setErrorSubida(msg);
+        toast.error(msg);
+      } finally {
+        setSubiendoOriginal(false);
       }
-
-      try {
-        const localData = localStorage.getItem('clipforge_local_proyectos');
-        const list = localData ? JSON.parse(localData) : [];
-        const index = list.findIndex((p: any) => p.id === effectiveId);
-        if (index >= 0) list[index] = updatedProj;
-        else list.push(updatedProj);
-        localStorage.setItem('clipforge_local_proyectos', JSON.stringify(list));
-      } catch {}
-
-      setPidiendoVideoOriginal(false);
-      toast.success('Vídeo subido. Ahora puedes cortar y descargar los clips.');
-      onNavigate?.(`/dashboard/proyecto/${effectiveId}/clips`);
-    } catch (err: any) {
-      console.error('Error subiendo vídeo original:', err);
-      toast.error(err?.message || 'Error al subir el vídeo');
-    } finally {
-      setSubiendoOriginal(false);
-    }
+    })();
   };
 
   // Generate Clips Batch Action (Fase 6 - Corte)
@@ -1300,6 +1381,9 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     // tienen el original (YouTube bloquea la descarga desde el servidor), así que
     // abrimos el diálogo de 2 pasos: descargar el vídeo y subirlo para poder cortar.
     if (proyecto?.url_youtube && !proyecto?.video_url) {
+      setErrorSubida('');
+      setAvisoSubida('');
+      setProgresoSubida(0);
       setPidiendoVideoOriginal(true);
       return;
     }
@@ -2359,22 +2443,67 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                     const f = e.dataTransfer.files?.[0];
                     if (f) subirVideoOriginal(f);
                   }}
-                  className={`flex flex-col items-center justify-center gap-1.5 px-4 py-6 rounded-xl border-2 border-dashed text-center transition-all ${
+                  className={`flex flex-col items-center justify-center gap-2 px-4 py-6 rounded-xl border-2 border-dashed text-center transition-all ${
                     arrastrandoVideo
                       ? 'border-cyan-400 bg-cyan-500/10'
                       : 'border-purple-700/50 bg-[#0b0b18] hover:border-purple-500/70'
-                  } ${subiendoOriginal ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}`}
+                  } ${subiendoOriginal ? 'pointer-events-none' : 'cursor-pointer'}`}
                 >
                   {subiendoOriginal ? (
-                    <Loader2 className="w-6 h-6 animate-spin text-purple-300" />
+                    <>
+                      <div className="relative w-[92px] h-[92px]">
+                        <svg viewBox="0 0 92 92" className="w-full h-full -rotate-90">
+                          <circle cx="46" cy="46" r="40" fill="none" stroke="#2b2b52" strokeWidth="7" />
+                          <circle
+                            cx="46"
+                            cy="46"
+                            r="40"
+                            fill="none"
+                            stroke="#a855f7"
+                            strokeWidth="7"
+                            strokeLinecap="round"
+                            strokeDasharray={2 * Math.PI * 40}
+                            strokeDashoffset={2 * Math.PI * 40 * (1 - progresoSubida / 100)}
+                            style={{ transition: 'stroke-dashoffset 0.2s ease' }}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center text-base font-black text-white">
+                          {progresoSubida}%
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold text-white">
+                        {progresoSubida < 100 ? 'Subiendo vídeo… no cierres esta pestaña' : 'Guardando en la nube…'}
+                      </span>
+                      {archivoSubiendo && (
+                        <span className="text-[11px] text-slate-400 break-all">
+                          {archivoSubiendo.name} · {(archivoSubiendo.size / 1048576).toFixed(1)} MB
+                        </span>
+                      )}
+                    </>
                   ) : (
-                    <Upload className="w-6 h-6 text-purple-300" />
+                    <>
+                      <Upload className="w-6 h-6 text-purple-300" />
+                      <span className="text-sm font-bold text-white">
+                        Arrastra aquí el vídeo o haz clic para elegirlo
+                      </span>
+                      <span className="text-[11px] text-slate-400">MP4, MOV, MKV o WEBM</span>
+                    </>
                   )}
-                  <span className="text-sm font-bold text-white">
-                    {subiendoOriginal ? 'Subiendo vídeo…' : 'Arrastra aquí el vídeo o haz clic para elegirlo'}
-                  </span>
-                  <span className="text-[11px] text-slate-400">MP4, MOV, MKV o WEBM</span>
                 </div>
+
+                {errorSubida && (
+                  <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/40">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-300" />
+                    <p className="text-[11px] text-red-200 leading-relaxed">{errorSubida}</p>
+                  </div>
+                )}
+
+                {!errorSubida && avisoSubida && (
+                  <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/40">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-300" />
+                    <p className="text-[11px] text-amber-200 leading-relaxed">{avisoSubida}</p>
+                  </div>
+                )}
               </div>
 
               <p className="text-[11px] text-slate-400 leading-relaxed">

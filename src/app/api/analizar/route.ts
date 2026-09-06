@@ -290,6 +290,8 @@ Analiza cada ventana de transcripción de 30 segundos y evalúa su potencial vir
 4. Preguntas retóricas que frenan el scroll.
 5. Debates intensos o lecciones de alto valor con inicio y fin claros.
 
+IDIOMA DE SALIDA (OBLIGATORIO): escribe SIEMPRE los campos "titulo_hook" y "razon" en ESPAÑOL (castellano de España), con independencia del idioma en el que esté la transcripción. Aunque el texto del vídeo venga en inglés, árabe u otro idioma, tus ganchos, títulos y razones deben redactarse en español.
+
 Debes responder ÚNICAMENTE un array JSON válido con la siguiente estructura exacta:
 [
   {

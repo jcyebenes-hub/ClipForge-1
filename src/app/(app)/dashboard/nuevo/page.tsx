@@ -27,6 +27,16 @@ import { sanitizarTitulo } from '../../../../lib/sanitizer';
 import { CopyrightNoticeModal, hasAcceptedCopyrightNotice } from '../../../../components/proyecto/CopyrightNoticeModal';
 import { toast } from 'sonner';
 
+// Extrae el ID de vídeo de cualquier URL de YouTube, en el cliente.
+// Permite mostrar miniatura + reproductor sin depender de nuestro servidor
+// (que YouTube a veces bloquea por ser IP de centro de datos).
+function extraerIdYoutube(url: string): string | null {
+  const m = url.match(
+    /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,20})/
+  );
+  return m ? m[1] : null;
+}
+
 interface NuevoProyectoPageProps {
   onNavigate?: (path: string) => void;
 }
@@ -231,26 +241,44 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
       return;
     }
 
+    const videoId = extraerIdYoutube(youtubeUrl.trim());
+    if (!videoId) {
+      toast.error('URL de YouTube no válida. Pega un enlace como https://www.youtube.com/watch?v=...');
+      return;
+    }
+
     setIsAnalyzingYt(true);
     setYtInfo(null);
 
+    // Datos mínimos obtenidos en TU navegador (no dependen del servidor): la miniatura
+    // viene de i.ytimg.com y el reproductor de youtube.com — ambos permitidos en cliente.
+    const base: YoutubeInfoResponse = {
+      titulo: 'Vídeo de YouTube',
+      autor: 'Canal de YouTube',
+      duracion_seg: 0,
+      miniatura: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      videoId,
+      embeddable: true,
+      fuente: 'mock',
+    };
+
     try {
-      // Información REAL desde YouTube (título, autor, duración real del vídeo)
+      // Completamos con datos REALES (título/autor/duración) si el servidor puede;
+      // si YouTube lo bloquea, seguimos con los mínimos para que el vídeo salga igual.
       const response = await fetch(`/api/youtube/info?url=${encodeURIComponent(youtubeUrl.trim())}`);
 
       if (response.ok) {
         const data: YoutubeInfoResponse = await response.json();
-        setYtInfo(data);
+        setYtInfo({ ...base, ...data });
         toast.success('Vídeo real localizado en YouTube');
       } else {
-        const errData = await response.json().catch(() => ({}));
-        setYtInfo(null);
-        toast.error(errData?.error || 'No se pudo verificar el vídeo en YouTube.');
+        setYtInfo(base);
+        toast.info('El servidor no pudo leer los datos (YouTube lo protege), pero el vídeo se mostrará desde tu navegador.');
       }
     } catch (err) {
       console.warn('Fetch info error:', err);
-      setYtInfo(null);
-      toast.error('Error de conexión al obtener la información del vídeo.');
+      setYtInfo(base);
+      toast.info('Sin conexión para verificar; el vídeo se mostrará desde tu navegador.');
     } finally {
       setIsAnalyzingYt(false);
     }
@@ -716,12 +744,14 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
             {ytInfo && (
               <div className="bg-[#0e0e1a] border border-purple-900/50 rounded-2xl p-5 sm:p-6 space-y-6">
                 <div className="flex items-center justify-between border-b border-purple-900/30 pb-3">
-                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                  <span className={`text-xs font-bold flex items-center gap-1.5 ${ytInfo.fuente === 'youtube-real' ? 'text-emerald-400' : 'text-amber-300'}`}>
                     <CheckCircle2 className="w-4 h-4" />
-                    Video verificado en YouTube
+                    {ytInfo.fuente === 'youtube-real' ? 'Video verificado en YouTube' : 'Vídeo listo — se reproducirá desde tu navegador'}
                   </span>
                   <span className="text-xs text-slate-400">
-                    Llamada a <code className="text-purple-300">/api/youtube/info</code>
+                    {ytInfo.fuente === 'youtube-real'
+                      ? <>Llamada a <code className="text-purple-300">/api/youtube/info</code></>
+                      : 'Datos del enlace (el servidor está bloqueado por YouTube)'}
                   </span>
                 </div>
 

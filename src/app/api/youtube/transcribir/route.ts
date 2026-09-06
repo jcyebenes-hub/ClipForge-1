@@ -269,6 +269,19 @@ export async function POST(request: Request) {
       finalJson = directoJson;
       finalStatus = directo.status;
 
+      // Si YouTube nos bloqueó, usa YA el respaldo gratis (rápido, ~2 s) en vez de
+      // agotar los reintentos lentos. Convierte el caso bloqueado en éxito inmediato.
+      if (youtubeBloqueado) {
+        const ia = await transcribirViaTranscriptAi(videoId);
+        if (ia) {
+          logEventoServer('transcripcion_youtube', { video_id: videoId, via: 'transcript-ai' });
+          return new Response(
+            JSON.stringify({ ...ia, fuente: 'transcript-ai', url_youtube: url }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
       // Capa 2: si falló y hay Worker configurado, delega
       if (process.env.YT_CAPTIONS_WORKER_URL) {
         const workerRes = await transcribirViaWorker(url);

@@ -33,6 +33,7 @@ _Última actualización: 2026-09-03. Verificado contra el código y producción.
 ## 📋 Backlog priorizado
 
 ### P1 — Experiencia YouTube
+- [x] **Transcripción por enlace RESUELTA GRATIS:** integrado **youtube-transcript.ai** como capa principal (`src/lib/transcriptAi.ts`): descarga los subtítulos desde SU infraestructura (no bloqueada) y devuelve transcript con marcas de tiempo. Verificado en prod: **Ibai 1,3 s · Numb 3,7 s**. Nuestro intento directo queda de respaldo. Es *fair-use* (bajo volumen); si ClipForge crece a alto volumen comercial, pasar al proxy propio (Fase 2) o a un acuerdo con el proveedor.
 - [x] **POT decidido → ELIMINADO.** Datos reales: el proveedor POT tardaba 14-22 s por intento (dyno frío) y **no** libraba del bloqueo (0 éxitos con él, todo timeout >150 s). Sin POT, la transcripción volvió a ~30-80 s y con mejor tasa (2/3 en prueba). Reversible: re-añadir la var `POT_PROVIDER_URL` en Render.
 - [ ] **Fase 2 — proxy residencial (~$5/mes)**: arreglo real del bloqueo. Habilita además descargar audio + Whisper server-side (el usuario no sube nada). _Necesita decisión + gasto._
 

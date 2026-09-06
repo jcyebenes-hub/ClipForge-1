@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../../../context/AuthContext';
 import { supabase, getSupabaseEnv } from '../../../../../lib/supabase/client';
+import { subirPorTrozosTus } from '../../../../../lib/tusUpload';
 import type { Proyecto, Clip } from '../../../../../lib/supabase/types';
 import { extract16kHzAudio } from '../../../../../lib/audioExtractor';
 import { generarVentanasTemporales, calcularHeuristicasVentanas } from '../../../../../lib/audioHeuristics';
@@ -177,6 +178,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const [enlaceCopiado, setEnlaceCopiado] = useState(false);
   const [arrastrandoVideo, setArrastrandoVideo] = useState(false);
   const [progresoSubida, setProgresoSubida] = useState(0);
+  const [bytesSubidos, setBytesSubidos] = useState(0);
   const [errorSubida, setErrorSubida] = useState('');
   const [archivoSubiendo, setArchivoSubiendo] = useState<File | null>(null);
   const [avisoSubida, setAvisoSubida] = useState('');
@@ -1254,6 +1256,18 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     return texto ? `Error al subir (${texto.slice(0, 200)})` : 'Error al subir el vídeo.';
   };
 
+  // Mientras se sube, avisar si el usuario intenta cerrar o recargar la página
+  // (cambiar de pestaña NO interrumpe la subida; cerrarla o recargarla sí).
+  useEffect(() => {
+    if (!subiendoOriginal) return;
+    const avisar = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', avisar);
+    return () => window.removeEventListener('beforeunload', avisar);
+  }, [subiendoOriginal]);
+
   const subirVideoOriginal = (file: File) => {
     if (!isSupabaseConfigured || !user) {
       const msg = 'Necesitas iniciar sesión (y Supabase configurado) para subir el vídeo.';
@@ -1272,6 +1286,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     setArchivoSubiendo(file);
     setSubiendoOriginal(true);
     setProgresoSubida(0);
+    setBytesSubidos(0);
 
     const { supabaseUrl, supabaseAnonKey } = getSupabaseEnv();
     const storagePath = `${user.id}/${effectiveId}/original.mp4`;
@@ -1282,28 +1297,56 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
         const token = sesion?.session?.access_token;
         if (!token) throw new Error('__SESION__');
 
-        // Subida por XMLHttpRequest en vez del SDK: así podemos leer el progreso real
-        // (xhr.upload.onprogress) y mostrar el porcentaje mientras se sube.
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', `${supabaseUrl}/storage/v1/object/media/${storagePath}`);
-          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-          xhr.setRequestHeader('apikey', supabaseAnonKey);
-          xhr.setRequestHeader('x-upsert', 'true');
-          xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) setProgresoSubida(Math.round((e.loaded / e.total) * 100));
-          };
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) resolve();
-            else reject(new Error(`${xhr.status}::${xhr.responseText || ''}`));
-          };
-          xhr.onerror = () => reject(new Error('__RED__'));
-          xhr.ontimeout = () => reject(new Error('__TIMEOUT__'));
-          xhr.send(file);
-        });
+        // 1) Subida POR TROZOS (tus): cada trozo lo confirma el servidor, así que el
+        //    porcentaje avanza de verdad al ritmo de la subida.
+        let usadoTus = false;
+        try {
+          await subirPorTrozosTus(file, {
+            storagePath,
+            bucket: 'media',
+            token,
+            anonKey: supabaseAnonKey,
+            baseUrl: `${supabaseUrl}/storage/v1`,
+            onProgreso: (pct, bytes) => {
+              setProgresoSubida(pct);
+              setBytesSubidos(bytes);
+            },
+          });
+          usadoTus = true;
+        } catch (errTus: any) {
+          console.warn('Subida por trozos no disponible; se usa la subida clásica:', errTus?.message || errTus);
+          setProgresoSubida(0);
+          setBytesSubidos(0);
+        }
+
+        // 2) Respaldo: subida de una pieza por XMLHttpRequest (el progreso lo da el
+        //    búfer del navegador, menos fiel, pero funciona si tus no está disponible).
+        if (!usadoTus) {
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${supabaseUrl}/storage/v1/object/media/${storagePath}`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.setRequestHeader('apikey', supabaseAnonKey);
+            xhr.setRequestHeader('x-upsert', 'true');
+            xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                setProgresoSubida(Math.round((e.loaded / e.total) * 100));
+                setBytesSubidos(e.loaded);
+              }
+            };
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) resolve();
+              else reject(new Error(`${xhr.status}::${xhr.responseText || ''}`));
+            };
+            xhr.onerror = () => reject(new Error('__RED__'));
+            xhr.ontimeout = () => reject(new Error('__TIMEOUT__'));
+            xhr.send(file);
+          });
+        }
 
         setProgresoSubida(100);
+        setBytesSubidos(file.size);
 
         let videoUrl = '';
         try {
@@ -2472,11 +2515,14 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                         </div>
                       </div>
                       <span className="text-sm font-bold text-white">
-                        {progresoSubida < 100 ? 'Subiendo vídeo… no cierres esta pestaña' : 'Guardando en la nube…'}
+                        {progresoSubida < 100
+                          ? 'Subiendo vídeo… (puedes cambiar de pestaña, no cierres ni recargues)'
+                          : 'Guardando en la nube…'}
                       </span>
                       {archivoSubiendo && (
                         <span className="text-[11px] text-slate-400 break-all">
-                          {archivoSubiendo.name} · {(archivoSubiendo.size / 1048576).toFixed(1)} MB
+                          {(bytesSubidos / 1048576).toFixed(1)} MB de{' '}
+                          {(archivoSubiendo.size / 1048576).toFixed(1)} MB · {archivoSubiendo.name}
                         </span>
                       )}
                     </>

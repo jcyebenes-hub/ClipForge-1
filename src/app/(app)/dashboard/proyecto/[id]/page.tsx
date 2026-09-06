@@ -104,6 +104,54 @@ interface ProyectoDetallePageProps {
   onNavigate?: (path: string) => void;
 }
 
+/**
+ * Carga (una sola vez) la IFrame API de YouTube. Está a nivel de módulo para
+ * poder PRECARGARLA en cuanto se abre un proyecto de YouTube, de modo que cuando
+ * haya que crear el reproductor la API ya esté lista y arranque casi al instante.
+ */
+function cargarApiYoutube(): Promise<any> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') return reject(new Error('sin window'));
+    const win = window as any;
+    if (win.YT && win.YT.Player) return resolve(win.YT);
+    const prev = win.onYouTubeIframeAPIReady;
+    win.onYouTubeIframeAPIReady = () => {
+      if (prev) prev();
+      resolve(win.YT);
+    };
+    if (!document.getElementById('yt-iframe-api')) {
+      const s = document.createElement('script');
+      s.id = 'yt-iframe-api';
+      s.src = 'https://www.youtube.com/iframe_api';
+      s.async = true;
+      s.onerror = () => reject(new Error('No se pudo cargar la API de YouTube'));
+      document.head.appendChild(s);
+    }
+  });
+}
+
+/** Abre conexiones anticipadas (preconnect) a los dominios del reproductor de YouTube. */
+function precargarConexionesYoutube(): void {
+  if (typeof document === 'undefined') return;
+  const hosts = [
+    'https://www.youtube.com',
+    'https://i.ytimg.com',
+    'https://www.gstatic.com',
+    'https://www.google.com',
+  ];
+  hosts.forEach((h) => {
+    const id = 'yt-preconnect-' + h.replace(/\W/g, '');
+    if (!document.getElementById(id)) {
+      const l = document.createElement('link');
+      l.id = id;
+      l.rel = 'preconnect';
+      l.href = h;
+      l.crossOrigin = 'anonymous';
+      document.head.appendChild(l);
+    }
+  });
+}
+
 export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({ 
   proyectoId = '', 
   onNavigate 
@@ -212,31 +260,20 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proyecto?.id, proyecto?.estado, proyecto?.archivo_nombre, isSupabaseConfigured, user?.id, esYoutube]);
 
+  // Precarga la API de YouTube y abre conexiones en cuanto el proyecto es de
+  // YouTube (incluso antes de tener transcripción), para que el reproductor
+  // arranque casi al instante cuando haga falta.
+  useEffect(() => {
+    if (!esYoutube) return;
+    precargarConexionesYoutube();
+    cargarApiYoutube().catch(() => {});
+  }, [esYoutube]);
+
   // Cargar la API de YouTube y crear el reproductor cuando el proyecto es de YouTube
   useEffect(() => {
     if (!esYoutube || !videoIdYt) return;
 
     let destruido = false;
-
-    function cargarApiYoutube(): Promise<any> {
-      return new Promise((resolve, reject) => {
-        const win = window as any;
-        if (win.YT && win.YT.Player) return resolve(win.YT);
-        const prev = win.onYouTubeIframeAPIReady;
-        win.onYouTubeIframeAPIReady = () => {
-          if (prev) prev();
-          resolve(win.YT);
-        };
-        if (!document.getElementById('yt-iframe-api')) {
-          const s = document.createElement('script');
-          s.id = 'yt-iframe-api';
-          s.src = 'https://www.youtube.com/iframe_api';
-          s.async = true;
-          s.onerror = () => reject(new Error('No se pudo cargar la API de YouTube'));
-          document.head.appendChild(s);
-        }
-      });
-    }
 
     (async () => {
       try {

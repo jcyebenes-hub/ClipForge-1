@@ -42,6 +42,10 @@ import { extract16kHzAudio } from '../../../../../lib/audioExtractor';
 import { generarVentanasTemporales, calcularHeuristicasVentanas } from '../../../../../lib/audioHeuristics';
 import { captureVideoFrame } from '../../../../../lib/thumbnailExtractor';
 import { toast } from 'sonner';
+import {
+  IDIOMAS_DISPONIBLES,
+  solicitarTraduccionSubtitulos,
+} from '../../../../../lib/traduccion';
 
 export interface WordData {
   word: string;
@@ -58,6 +62,13 @@ export interface SegmentData {
   words?: WordData[];
 }
 
+export interface IdiomaDisponibleItem {
+  codigo: string;
+  base: string;
+  nombre: string;
+  auto: boolean;
+}
+
 export interface TranscriptionPayload {
   task?: string;
   language?: string;
@@ -66,6 +77,9 @@ export interface TranscriptionPayload {
   segments: SegmentData[];
   words?: WordData[];
   provider?: string;
+  fuente?: string;
+  video_id?: string;
+  idiomas_disponibles?: IdiomaDisponibleItem[];
 }
 
 export interface ClipItem {
@@ -104,6 +118,10 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const [progressStage, setProgressStage] = useState('');
   const [progressDetail, setProgressDetail] = useState('');
   const [transcriptData, setTranscriptData] = useState<TranscriptionPayload | null>(null);
+  // Idioma de la transcripción y Languages disponibles (pistas de subtítulo del vídeo).
+  const [idiomasDisponibles, setIdiomasDisponibles] = useState<IdiomaDisponibleItem[]>([]);
+  const [idiomaTranscripcion, setIdiomaTranscripcion] = useState<string>('es');
+  const [cambiandoIdioma, setCambiandoIdioma] = useState(false);
   // Aviso cuando YouTube no nos deja leer los subtítulos (IP bloqueada o vídeo sin subs).
   // Sirve para mostrar un mensaje claro y empujar la subida del archivo (Whisper).
   const [ytBlock, setYtBlock] = useState<{ tipo: 'bloqueado' | 'sin_subtitulos'; mensaje: string } | null>(null);
@@ -500,19 +518,149 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     }
   };
 
+  // Bandera de un idioma base usando el catálogo compartido.
+  const flagIdioma = (base: string): string =>
+    IDIOMAS_DISPONIBLES.find((i) => i.codigo.toLowerCase() === String(base || '').toLowerCase())?.bandera || '🌐';
+
+  // Traduce una transcripción completa a otro idioma con Llama 3.3 70B (/api/traducir),
+  // conservando los tiempos de cada segmento y regenerando las marcas por palabra.
+  const traducirTranscripcion = async (
+    payload: TranscriptionPayload,
+    idioma: string
+  ): Promise<TranscriptionPayload> => {
+    const entradas = (payload.segments || []).map((s) => ({
+      t_inicio: s.start,
+      t_fin: s.end,
+      texto: s.text,
+    }));
+    if (!entradas.length) return payload;
+
+    const tr = await solicitarTraduccionSubtitulos({
+      clip_id: effectiveId,
+      idioma,
+      subtitulos: entradas,
+    });
+
+    const esFallback = !tr?.success || tr.provider === 'local-fallback' || tr.provider === 'fallback-translator';
+    if (esFallback || !Array.isArray(tr.subtitulos) || tr.subtitulos.length === 0) {
+      toast.warning('No se pudo traducir con IA en este intento; se mantiene el idioma original.');
+      return payload;
+    }
+
+    const segmentos: SegmentData[] = tr.subtitulos.map((e, i) => {
+      const palabras = String(e.texto || '').split(/\s+/).filter(Boolean);
+      const dur = Math.max(0.5, e.t_fin - e.t_inicio);
+      const paso = dur / Math.max(1, palabras.length);
+      return {
+        id: i,
+        start: e.t_inicio,
+        end: e.t_fin,
+        text: e.texto,
+        words: palabras.map((w, j) => ({
+          word: w,
+          start: Number((e.t_inicio + j * paso).toFixed(2)),
+          end: Number((e.t_inicio + (j + 1) * paso * 0.95).toFixed(2)),
+        })),
+      };
+    });
+
+    return {
+      ...payload,
+      language: idioma,
+      text: segmentos.map((s) => s.text).join(' '),
+      segments: segmentos,
+      words: segmentos.flatMap((s) => s.words || []),
+      provider: tr.provider || payload.provider,
+    };
+  };
+
+  // Cambia el idioma de la transcripción: usa la pista de subtítulo del vídeo si
+  // existe (gratis e instantáneo) y, si no, traduce con IA al idioma elegido.
+  const cambiarIdiomaTranscripcion = async (codigo: string) => {
+    if (!proyecto?.url_youtube || !transcriptData || cambiandoIdioma) return;
+    if (codigo === idiomaTranscripcion) return;
+    setCambiandoIdioma(true);
+    try {
+      const dispo = idiomasDisponibles.find(
+        (i) => i.codigo === codigo || i.base === codigo.toLowerCase().split('-')[0]
+      );
+      let nuevo: TranscriptionPayload;
+
+      if (codigo === 'auto' || dispo) {
+        const langParam = codigo === 'auto' ? 'auto' : dispo?.codigo || codigo;
+        toast.info('Obteniendo subtítulos en este idioma…');
+        const res = await fetch('/api/youtube/transcribir', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: proyecto.url_youtube, lang: langParam }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || `Error al cambiar el idioma (${res.status})`);
+        nuevo = data as TranscriptionPayload;
+        if (nuevo.idiomas_disponibles?.length) setIdiomasDisponibles(nuevo.idiomas_disponibles);
+      } else {
+        toast.info('Traduciendo la transcripción con IA…');
+        nuevo = await traducirTranscripcion(transcriptData, codigo);
+      }
+
+      setTranscriptData(nuevo);
+      setIdiomaTranscripcion(nuevo.language || codigo);
+
+      const updatedProj: Proyecto = {
+        ...proyecto,
+        subtitulos_json: nuevo as any,
+        actualizado_en: new Date().toISOString(),
+      };
+      setProyecto(updatedProj);
+
+      if (isSupabaseConfigured && user) {
+        try {
+          await (supabase.from('proyectos') as any)
+            .update({ subtitulos_json: nuevo, actualizado_en: new Date().toISOString() })
+            .eq('id', effectiveId);
+        } catch (dbErr) {
+          console.warn('Error guardando transcripción traducida en Supabase:', dbErr);
+        }
+      }
+
+      try {
+        const localData = localStorage.getItem('clipforge_local_proyectos');
+        const list = localData ? JSON.parse(localData) : [];
+        const index = list.findIndex((p: any) => p.id === effectiveId);
+        if (index >= 0) list[index] = updatedProj;
+        else list.push(updatedProj);
+        localStorage.setItem('clipforge_local_proyectos', JSON.stringify(list));
+      } catch {}
+
+      const nombreLang =
+        IDIOMAS_DISPONIBLES.find((i) => i.codigo === (nuevo.language || codigo))?.nombre ||
+        (nuevo.language || codigo).toUpperCase();
+      toast.success(`Transcripción en ${nombreLang}`);
+    } catch (err: any) {
+      console.error('Error cambiando idioma:', err);
+      toast.error(err.message || 'Error al cambiar el idioma de la transcripción');
+    } finally {
+      setCambiandoIdioma(false);
+    }
+  };
+
   // Transcripción REAL por subtítulos de YouTube (proyectos creados con URL de YouTube)
-  const transcribirDesdeYoutube = async () => {
+  const transcribirDesdeYoutube = async (lang: string = 'es') => {
     if (!proyecto?.url_youtube) return;
     setTranscribing(true);
     setProgressPercent(15);
     setProgressStage('Obteniendo subtítulos reales de YouTube…');
-    setProgressDetail('Buscando transcripción en español (manual o automática)…');
+    setProgressDetail(
+      lang.toLowerCase() === 'es'
+        ? 'Buscando transcripción en español (manual o automática)…'
+        : `Buscando transcripción en ${lang}…`
+    );
 
     try {
       const res = await fetch('/api/youtube/transcribir', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: proyecto.url_youtube }),
+        body: JSON.stringify({ url: proyecto.url_youtube, lang }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -536,11 +684,25 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       }
 
       setYtBlock(null);
+
+      let result = data as TranscriptionPayload;
+      setIdiomasDisponibles(result.idiomas_disponibles || []);
+
+      // Si queríamos español pero el vídeo no tiene subtítulos en español,
+      // traducimos con IA para que el castellano sea el idioma por defecto.
+      const queremosEs = lang.toLowerCase() === 'es';
+      const vieneEs = String(result.language || '').toLowerCase().split('-')[0] === 'es';
+      if (queremosEs && !vieneEs && result.segments?.length) {
+        setProgressPercent(60);
+        setProgressStage('El vídeo no tiene subtítulos en español…');
+        setProgressDetail('Traduciendo la transcripción al español con IA (Llama 3.3 70B)…');
+        result = await traducirTranscripcion(result, 'es');
+      }
+
       setProgressPercent(85);
       setProgressStage('Guardando transcripción con marcas de tiempo…');
       setProgressDetail('Indexando segmentos y palabras por segundo…');
 
-      const result = data as TranscriptionPayload;
       const duracion = Number(result.duration) || proyecto.duracion_seg || 60;
 
       const updatedProj: Proyecto = {
@@ -552,6 +714,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       };
       setProyecto(updatedProj);
       setTranscriptData(result);
+      setIdiomaTranscripcion(result.language || lang);
 
       if (isSupabaseConfigured && user) {
         try {
@@ -1782,27 +1945,67 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                 {/* TAB 2: SYNCHRONIZED TRANSCRIPT VIEW */}
                 {activeViewTab === 'transcripcion' && (
                   <div className="bg-[#121222] border border-purple-900/40 rounded-2xl p-5 flex flex-col h-[560px] shadow-xl">
-                    <div className="flex items-center justify-between gap-3 pb-4 border-b border-purple-900/30">
-                      <div className="relative flex-1">
-                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          placeholder="Buscar palabra o frase en la transcripción..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="w-full pl-9 pr-3 py-2 bg-[#17172e] border border-purple-900/40 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                        />
-                      </div>
+                    <div className="pb-4 border-b border-purple-900/30 space-y-3">
+                      {/* Selector de idioma de la transcripción */}
+                      {esYoutube && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Subtitles className="w-4 h-4 text-purple-300 shrink-0" />
+                          <span className="text-xs text-slate-400 shrink-0">Idioma:</span>
+                          <select
+                            value={idiomaTranscripcion}
+                            disabled={cambiandoIdioma}
+                            onChange={(e) => cambiarIdiomaTranscripcion(e.target.value)}
+                            className="bg-[#17172e] border border-purple-900/40 rounded-lg text-xs text-white px-2 py-1.5 focus:outline-none focus:border-purple-500 disabled:opacity-50 max-w-[220px]"
+                            title="Si el vídeo tiene subtítulos en ese idioma se usan directamente (gratis); si no, se traduce con IA."
+                          >
+                            <option value="auto">🌐 Original del vídeo</option>
+                            {idiomasDisponibles.map((i) => (
+                              <option key={`cap-${i.codigo}`} value={i.codigo}>
+                                {flagIdioma(i.base)} {i.nombre} · subtítulo
+                              </option>
+                            ))}
+                            <optgroup label="Traducir con IA">
+                              {IDIOMAS_DISPONIBLES.filter(
+                                (i) =>
+                                  !idiomasDisponibles.some(
+                                    (d) => d.base === i.codigo.toLowerCase().split('-')[0]
+                                  )
+                              ).map((i) => (
+                                <option key={`tr-${i.codigo}`} value={i.codigo}>
+                                  {i.bandera} {i.nombre}
+                                </option>
+                              ))}
+                            </optgroup>
+                          </select>
+                          {cambiandoIdioma && <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />}
+                          {transcriptData?.provider === 'groq-llama-3.3' && (
+                            <span className="text-[10px] text-amber-300/90">traducido con IA</span>
+                          )}
+                        </div>
+                      )}
 
-                      <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={autoScroll}
-                          onChange={(e) => setAutoScroll(e.target.checked)}
-                          className="accent-purple-500 rounded"
-                        />
-                        <span>Auto-scroll</span>
-                      </label>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="relative flex-1">
+                          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="Buscar palabra o frase en la transcripción..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 bg-[#17172e] border border-purple-900/40 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={autoScroll}
+                            onChange={(e) => setAutoScroll(e.target.checked)}
+                            className="accent-purple-500 rounded"
+                          />
+                          <span>Auto-scroll</span>
+                        </label>
+                      </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto space-y-4 py-4 pr-2 scrollbar-thin scrollbar-thumb-purple-900">

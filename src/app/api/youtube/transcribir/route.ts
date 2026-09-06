@@ -228,6 +228,10 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const url = body?.url || '';
     const debug = body?.debug === 1 || body?.debug === true;
+    // Idioma objetivo de la transcripción. Por defecto castellano ('es'); el
+    // proveedor elegirá el mejor código disponible (es, es-ES, es-419, es-MX…).
+    // 'auto'/'original' devuelve el idioma nativo del vídeo sin forzar.
+    const lang = typeof body?.lang === 'string' && body.lang ? body.lang : 'es';
 
     if (!url) {
       return new Response(JSON.stringify({ error: 'URL de YouTube requerida' }), {
@@ -251,7 +255,7 @@ export async function POST(request: Request) {
     // Capa 0 (rápida y fiable): delegamos en youtube-transcript.ai, que descarga los
     // subtítulos desde su infraestructura no bloqueada → respondemos en ~2-5 s.
     // Nuestro intento directo queda como respaldo por si este proveedor no responde.
-    const rapido = await transcribirViaTranscriptAi(videoId);
+    const rapido = await transcribirViaTranscriptAi(videoId, lang);
     if (rapido) {
       logEventoServer('transcripcion_youtube', { video_id: videoId, via: 'transcript-ai' });
       return new Response(
@@ -284,7 +288,7 @@ export async function POST(request: Request) {
       // Si YouTube nos bloqueó, usa YA el respaldo gratis (rápido, ~2 s) en vez de
       // agotar los reintentos lentos. Convierte el caso bloqueado en éxito inmediato.
       if (youtubeBloqueado) {
-        const ia = await transcribirViaTranscriptAi(videoId);
+        const ia = await transcribirViaTranscriptAi(videoId, lang);
         if (ia) {
           logEventoServer('transcripcion_youtube', { video_id: videoId, via: 'transcript-ai' });
           return new Response(
@@ -336,7 +340,7 @@ export async function POST(request: Request) {
     // su propia infraestructura (no bloqueada por YouTube), así el enlace funciona
     // aunque nuestro servidor esté bloqueado. Solo se usa si lo anterior falló.
     if (finalStatus !== 200) {
-      const ia = await transcribirViaTranscriptAi(videoId);
+      const ia = await transcribirViaTranscriptAi(videoId, lang);
       if (ia) {
         logEventoServer('transcripcion_youtube', { video_id: videoId, via: 'transcript-ai' });
         return new Response(

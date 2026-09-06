@@ -14,6 +14,7 @@
 
 import { sanitizarTitulo } from '@/src/lib/sanitizer';
 import { logEventoServer } from '@/src/lib/telemetria';
+import { transcribirViaTranscriptAi } from '@/src/lib/transcriptAi';
 import {
   probarClientes,
   fetchVttCapitulos,
@@ -305,6 +306,21 @@ export async function POST(request: Request) {
     if (finalJson && typeof finalJson === 'object' && youtubeBloqueado) {
       finalJson = { ...finalJson, bloqueado_por_youtube: true };
     }
+
+    // Capa de respaldo GRATIS: youtube-transcript.ai descarga los subtítulos desde
+    // su propia infraestructura (no bloqueada por YouTube), así el enlace funciona
+    // aunque nuestro servidor esté bloqueado. Solo se usa si lo anterior falló.
+    if (finalStatus !== 200) {
+      const ia = await transcribirViaTranscriptAi(videoId);
+      if (ia) {
+        logEventoServer('transcripcion_youtube', { video_id: videoId, via: 'transcript-ai' });
+        return new Response(
+          JSON.stringify({ ...ia, fuente: 'transcript-ai', url_youtube: url }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     logEventoServer(
       youtubeBloqueado ? 'youtube_bloqueado' : 'youtube_fallo',
       { video_id: videoId, code: finalJson?.code || null }

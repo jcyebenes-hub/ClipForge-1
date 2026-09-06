@@ -33,7 +33,8 @@ import {
   ChevronRight,
   TrendingUp,
   Radio,
-  Upload
+  Upload,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../../../../context/AuthContext';
 import { supabase } from '../../../../../lib/supabase/client';
@@ -1289,13 +1290,25 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                     <strong className="text-white">Solución gratuita e inmediata:</strong> sube el archivo de audio o vídeo y lo transcribimos con Whisper (motor de IA). Funciona con <strong className="text-white">cualquier</strong> vídeo y te da marcas de tiempo por palabra, igual que el resto del pipeline.
                   </div>
 
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-7 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black shadow-lg shadow-amber-900/30 transition-all cursor-pointer"
-                  >
-                    <Upload className="w-5 h-5" />
-                    <span>Subir archivo y transcribir con Whisper</span>
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {ytBlock.tipo === 'bloqueado' && (
+                      <button
+                        onClick={() => transcribirDesdeYoutube()}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-bold bg-[#0e0e1c] border border-amber-600/40 text-amber-200 hover:bg-[#15152a] hover:border-amber-500/60 transition-all cursor-pointer"
+                        title="El bloqueo de YouTube es intermitente: a veces el siguiente intento entra"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        <span>Volver a intentar</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-7 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black shadow-lg shadow-amber-900/30 transition-all cursor-pointer"
+                    >
+                      <Upload className="w-5 h-5" />
+                      <span>Subir archivo y transcribir con Whisper</span>
+                    </button>
+                  </div>
 
                   <p className="text-[11px] text-slate-400 leading-relaxed">
                     Vale el audio o el vídeo (.mp3, .mp4, .m4a, .wav…). Si es contenido tuyo, usa el original; si no, consíguelo por tu cuenta y súbelo aquí.

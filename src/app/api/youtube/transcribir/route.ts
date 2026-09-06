@@ -248,6 +248,18 @@ export async function POST(request: Request) {
     // el ciclo (directo + Worker) unas veces antes de rendirnos. Solo se reintenta en
     // códigos que pueden ser bloqueo transitorio, nunca en errores definitivos
     // (BAD_URL, VIDEO_RESTRICTED, etc.).
+    // Capa 0 (rápida y fiable): delegamos en youtube-transcript.ai, que descarga los
+    // subtítulos desde su infraestructura no bloqueada → respondemos en ~2-5 s.
+    // Nuestro intento directo queda como respaldo por si este proveedor no responde.
+    const rapido = await transcribirViaTranscriptAi(videoId);
+    if (rapido) {
+      logEventoServer('transcripcion_youtube', { video_id: videoId, via: 'transcript-ai' });
+      return new Response(
+        JSON.stringify({ ...rapido, fuente: 'transcript-ai', url_youtube: url }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const INTENTOS = 3;
     const REINTENTABLES = new Set([
       'YT_BOT_BLOCKED', 'NO_CAPTIONS', 'WORKER_UNREACHABLE', 'WORKER_ERROR',

@@ -222,6 +222,7 @@ export async function solicitarTraduccionSubtitulos(params: {
   clip_id: string;
   idioma: string;
   subtitulos: EntradaSubtituloJSON[];
+  desde?: string; // idioma de origen; permite traducir A español cuando el origen no es español
 }): Promise<{
   success: boolean;
   idioma: string;

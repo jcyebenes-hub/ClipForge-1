@@ -539,6 +539,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       clip_id: effectiveId,
       idioma,
       subtitulos: entradas,
+      desde: payload.language || undefined,
     });
 
     const esFallback = !tr?.success || tr.provider === 'local-fallback' || tr.provider === 'fallback-translator';

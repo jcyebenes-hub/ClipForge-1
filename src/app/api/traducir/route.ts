@@ -11,6 +11,8 @@ export interface TraducirApiRequest {
   clip_id: string;
   idioma: string; // ej: 'en', 'fr', 'pt', 'ja', 'de', etc.
   subtitulos?: EntradaSubtituloJSON[];
+  desde?: string; // idioma de origen (ej: 'en', 'ar'). Si se indica y no es el
+  // destino, se traduce de verdad incluso cuando el destino es 'es'.
 }
 
 export interface TraducirApiResponse {
@@ -25,7 +27,7 @@ export interface TraducirApiResponse {
 export async function POST(request: Request) {
   try {
     const body: TraducirApiRequest = await request.json();
-    const { clip_id = 'clip-demo', idioma = 'en', subtitulos = [] } = body;
+    const { clip_id = 'clip-demo', idioma = 'en', subtitulos = [], desde } = body;
 
     if (!clip_id || !idioma) {
       return new Response(
@@ -44,8 +46,12 @@ export async function POST(request: Request) {
       bandera: '🌐',
     };
 
-    // Si ya está en español y no hay nada que traducir
-    if (idioma === 'es' && subtitulos.length > 0) {
+    // Si el origen ya está en español y el destino es español, no hay nada que
+    // traducir. Pero si viene un idioma de origen distinto (p. ej. 'en' o 'ar'),
+    // SÍ traducimos al español de verdad.
+    const desdeBase = desde ? String(desde).toLowerCase().split('-')[0] : '';
+    const origenYaEsDestino = idioma === 'es' && (!desdeBase || desdeBase === 'es');
+    if (origenYaEsDestino && subtitulos.length > 0) {
       return new Response(
         JSON.stringify({
           success: true,

@@ -33,8 +33,7 @@ import {
   ChevronRight,
   TrendingUp,
   Radio,
-  Upload,
-  RefreshCw
+  Upload
 } from 'lucide-react';
 import { useAuth } from '../../../../../context/AuthContext';
 import { supabase } from '../../../../../lib/supabase/client';

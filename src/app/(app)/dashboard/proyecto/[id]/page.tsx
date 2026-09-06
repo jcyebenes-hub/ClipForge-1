@@ -170,6 +170,9 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const [idiomasDisponibles, setIdiomasDisponibles] = useState<IdiomaDisponibleItem[]>([]);
   const [idiomaTranscripcion, setIdiomaTranscripcion] = useState<string>('es');
   const [cambiandoIdioma, setCambiandoIdioma] = useState(false);
+  // Subir el archivo de vídeo original (proyectos de YouTube) para poder cortar/descargar.
+  const [pidiendoVideoOriginal, setPidiendoVideoOriginal] = useState(false);
+  const [subiendoOriginal, setSubiendoOriginal] = useState(false);
   // Aviso cuando YouTube no nos deja leer los subtítulos (IP bloqueada o vídeo sin subs).
   // Sirve para mostrar un mensaje claro y empujar la subida del archivo (Whisper).
   const [ytBlock, setYtBlock] = useState<{ tipo: 'bloqueado' | 'sin_subtitulos'; mensaje: string } | null>(null);
@@ -194,6 +197,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const [autoScroll, setAutoScroll] = useState(true);
   const [copied, setCopied] = useState(false);
   const activeWordRef = useRef<HTMLSpanElement>(null);
+  const videoOriginalInputRef = useRef<HTMLInputElement>(null);
 
   // Extract ID from pathname or prop
   const effectiveId = proyectoId || (typeof window !== 'undefined' ? window.location.pathname.split('/').pop() : '') || 'proj-demo';
@@ -1175,6 +1179,71 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     setEditingClip(null);
   };
 
+  // Sube el archivo de vídeo original (descargado por el usuario) para poder cortar y
+  // descargar los clips. YouTube no permite descargarlo desde el servidor, así que el
+  // usuario lo obtiene por su cuenta (p. ej. en un descargador) y lo sube aquí; se guarda
+  // como {user}/{proyecto}/original.mp4, que es lo que usa la página de clips para cortar.
+  const subirVideoOriginal = async (file: File) => {
+    if (!isSupabaseConfigured || !user) {
+      toast.error('Necesitas iniciar sesión (y Supabase configurado) para subir el vídeo.');
+      return;
+    }
+    setSubiendoOriginal(true);
+    try {
+      const storagePath = `${user.id}/${effectiveId}/original.mp4`;
+      const { error } = await supabase.storage
+        .from('media')
+        .upload(storagePath, file, { upsert: true, contentType: file.type || 'video/mp4' });
+      if (error) throw error;
+
+      let videoUrl = '';
+      try {
+        const { data: signed } = await supabase.storage
+          .from('media')
+          .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+        videoUrl = signed?.signedUrl || '';
+      } catch {}
+
+      const updatedProj: Proyecto = {
+        ...proyecto!,
+        archivo_nombre: file.name,
+        video_url: videoUrl || proyecto?.video_url,
+        actualizado_en: new Date().toISOString(),
+      };
+      setProyecto(updatedProj);
+
+      try {
+        await (supabase.from('proyectos') as any)
+          .update({
+            archivo_nombre: file.name,
+            video_url: videoUrl || undefined,
+            actualizado_en: new Date().toISOString(),
+          })
+          .eq('id', effectiveId);
+      } catch (dbErr) {
+        console.warn('Error guardando vídeo original en Supabase:', dbErr);
+      }
+
+      try {
+        const localData = localStorage.getItem('clipforge_local_proyectos');
+        const list = localData ? JSON.parse(localData) : [];
+        const index = list.findIndex((p: any) => p.id === effectiveId);
+        if (index >= 0) list[index] = updatedProj;
+        else list.push(updatedProj);
+        localStorage.setItem('clipforge_local_proyectos', JSON.stringify(list));
+      } catch {}
+
+      setPidiendoVideoOriginal(false);
+      toast.success('Vídeo subido. Ahora puedes cortar y descargar los clips.');
+      onNavigate?.(`/dashboard/proyecto/${effectiveId}/clips`);
+    } catch (err: any) {
+      console.error('Error subiendo vídeo original:', err);
+      toast.error(err?.message || 'Error al subir el vídeo');
+    } finally {
+      setSubiendoOriginal(false);
+    }
+  };
+
   // Generate Clips Batch Action (Fase 6 - Corte)
   const handleGenerateShorts = (clipIdsToProcess: string[]) => {
     if (clipIdsToProcess.length === 0) {
@@ -1182,15 +1251,11 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       return;
     }
 
-    // Corte real = necesita el archivo de vídeo (mp4). Los proyectos de YouTube
-    // todavía no tienen el mp4 original descargado (YouTube lo bloquea), así que
-    // no podemos generar el archivo cortado sin el original.
+    // Corte real = necesita el archivo de vídeo (mp4). Los proyectos de YouTube no
+    // tienen el original (YouTube bloquea la descarga desde el servidor), así que
+    // abrimos el diálogo de 2 pasos: descargar el vídeo y subirlo para poder cortar.
     if (proyecto?.url_youtube && !proyecto?.video_url) {
-      toast.warning(
-        'Para generar los clips en formato vertical se necesita el archivo de vídeo. ' +
-          'Por ahora puedes previsualizar y editar los momentos desde esta pantalla. ' +
-          'El corte desde YouTube estará disponible cuando se habilite la descarga del original (o importa el mp4 con "Subir archivo").'
-      );
+      setPidiendoVideoOriginal(true);
       return;
     }
 
@@ -2127,6 +2192,71 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                 )}
 
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: subir el vídeo original para poder cortar/descargar (proyectos de YouTube) */}
+        {pidiendoVideoOriginal && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-[#141428] border border-purple-800/60 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between border-b border-purple-900/40 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-purple-600/20 text-pink-400 flex items-center justify-center">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm sm:text-base font-bold text-white">Para descargar los clips necesitas el vídeo</h3>
+                </div>
+                <button
+                  onClick={() => setPidiendoVideoOriginal(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-purple-900/30 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                YouTube no permite descargar el vídeo desde nuestro servidor (bloqueo anti-bots y normas de YouTube).
+                Para <strong className="text-white">cortar y descargar</strong> los clips hace falta el archivo de vídeo.
+                Son 2 pasos y es <strong className="text-white">gratis</strong>:
+              </p>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => window.open('https://www.ytultra.com/es/youtube-video-downloader/', '_blank', 'noopener')}
+                  className="w-full inline-flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl text-sm font-bold bg-[#0e0e1c] border border-purple-700/50 text-purple-100 hover:bg-[#15152a] hover:border-purple-500/60 transition-all cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-cyan-300 font-black">1.</span> Descargar el vídeo (abrir descargador)
+                  </span>
+                  <ExternalLink className="w-4 h-4 text-cyan-300 shrink-0" />
+                </button>
+
+                <input
+                  ref={videoOriginalInputRef}
+                  type="file"
+                  accept="video/*,.mp4,.mov,.mkv,.webm"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) subirVideoOriginal(f);
+                    e.target.value = '';
+                  }}
+                />
+                <button
+                  onClick={() => videoOriginalInputRef.current?.click()}
+                  disabled={subiendoOriginal}
+                  className="w-full inline-flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/30 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {subiendoOriginal ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                  <span>{subiendoOriginal ? 'Subiendo vídeo…' : '2. Subir el vídeo descargado'}</span>
+                </button>
+              </div>
+
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Al subirlo, ClipForge cortará cada clip con FFmpeg y te dejará <strong className="text-slate-200">descargarlo en MP4</strong>
+                {' '}(y generarlo en vertical 9:16 con subtítulos). Usa contenido propio o del que tengas derechos.
+              </p>
             </div>
           </div>
         )}

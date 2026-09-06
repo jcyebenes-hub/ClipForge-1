@@ -173,6 +173,8 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   // Subir el archivo de vídeo original (proyectos de YouTube) para poder cortar/descargar.
   const [pidiendoVideoOriginal, setPidiendoVideoOriginal] = useState(false);
   const [subiendoOriginal, setSubiendoOriginal] = useState(false);
+  const [enlaceCopiado, setEnlaceCopiado] = useState(false);
+  const [arrastrandoVideo, setArrastrandoVideo] = useState(false);
   // Aviso cuando YouTube no nos deja leer los subtítulos (IP bloqueada o vídeo sin subs).
   // Sirve para mostrar un mensaje claro y empujar la subida del archivo (Whisper).
   const [ytBlock, setYtBlock] = useState<{ tipo: 'bloqueado' | 'sin_subtitulos'; mensaje: string } | null>(null);
@@ -1177,6 +1179,49 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     } catch {}
     toast.success('Cambios del clip guardados');
     setEditingClip(null);
+  };
+
+  // Copia texto al portapapeles (con respaldo para navegadores sin clipboard API)
+  const copiarAlPortapapeles = async (texto: string): Promise<boolean> => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(texto);
+        return true;
+      }
+    } catch {}
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const marcarEnlaceCopiado = () => {
+    setEnlaceCopiado(true);
+    setTimeout(() => setEnlaceCopiado(false), 2500);
+  };
+
+  // Abre el descargador dejando el enlace YA copiado: el usuario solo pega (Ctrl+V)
+  const abrirDescargador = async (destino: string) => {
+    const enlace = proyecto?.url_youtube || '';
+    if (enlace) {
+      const ok = await copiarAlPortapapeles(enlace);
+      if (ok) {
+        marcarEnlaceCopiado();
+        toast.success('Enlace copiado. En el descargador pega con Ctrl+V y pulsa Descargar.');
+      } else {
+        toast('Copia el enlace del paso 1 y pégalo en el descargador.');
+      }
+    }
+    window.open(destino, '_blank', 'noopener');
   };
 
   // Sube el archivo de vídeo original (descargado por el usuario) para poder cortar y
@@ -2218,20 +2263,78 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
               <p className="text-xs text-slate-300 leading-relaxed">
                 YouTube no permite descargar el vídeo desde nuestro servidor (bloqueo anti-bots y normas de YouTube).
                 Para <strong className="text-white">cortar y descargar</strong> los clips hace falta el archivo de vídeo.
-                Son 2 pasos y es <strong className="text-white">gratis</strong>:
+                Son 3 pasos rápidos y es <strong className="text-white">gratis</strong>:
               </p>
 
-              <div className="space-y-3">
+              {/* PASO 1: el enlace del vídeo + botón copiar */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+                  <span className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center text-[10px] shrink-0">1</span>
+                  Copia el enlace del vídeo
+                </div>
+                <div className="flex items-stretch gap-2">
+                  <input
+                    readOnly
+                    value={proyecto?.url_youtube || ''}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="flex-1 min-w-0 px-3 py-2.5 rounded-xl text-[11px] font-mono bg-[#0b0b18] border border-purple-700/40 text-purple-100 focus:outline-none focus:border-purple-400/70"
+                  />
+                  <button
+                    onClick={async () => {
+                      const ok = await copiarAlPortapapeles(proyecto?.url_youtube || '');
+                      if (ok) {
+                        marcarEnlaceCopiado();
+                        toast.success('Enlace copiado.');
+                      } else {
+                        toast.error('No se pudo copiar: selecciónalo y usa Ctrl+C');
+                      }
+                    }}
+                    className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      enlaceCopiado
+                        ? 'bg-green-600/20 border border-green-500/50 text-green-300'
+                        : 'bg-[#1b1b38] border border-purple-600/50 text-purple-100 hover:bg-[#24244a]'
+                    }`}
+                  >
+                    {enlaceCopiado ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    {enlaceCopiado ? 'Copiado' : 'Copiar'}
+                  </button>
+                </div>
+              </div>
+
+              {/* PASO 2: abrir el descargador (dejando el enlace ya copiado) */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+                  <span className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center text-[10px] shrink-0">2</span>
+                  Ábrelo en el descargador y baja el MP4
+                </div>
                 <button
-                  onClick={() => window.open('https://www.ytultra.com/es/youtube-video-downloader/', '_blank', 'noopener')}
+                  onClick={() => abrirDescargador('https://www.ytultra.com/es/youtube-video-downloader/')}
                   className="w-full inline-flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl text-sm font-bold bg-[#0e0e1c] border border-purple-700/50 text-purple-100 hover:bg-[#15152a] hover:border-purple-500/60 transition-all cursor-pointer"
                 >
-                  <span className="flex items-center gap-2">
-                    <span className="text-cyan-300 font-black">1.</span> Descargar el vídeo (abrir descargador)
-                  </span>
+                  <span>Abrir descargador (copia el enlace solo)</span>
                   <ExternalLink className="w-4 h-4 text-cyan-300 shrink-0" />
                 </button>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  En la página que se abre: <strong className="text-slate-200">pega con Ctrl+V</strong> y pulsa{' '}
+                  <strong className="text-slate-200">Download</strong>, y elige MP4. Si no funciona, prueba{' '}
+                  <a
+                    href="https://cobalt.tools/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-300 hover:underline"
+                  >
+                    cobalt.tools
+                  </a>
+                  .
+                </p>
+              </div>
 
+              {/* PASO 3: subir el archivo (arrastrar o clicar) */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+                  <span className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center text-[10px] shrink-0">3</span>
+                  Sube el archivo descargado
+                </div>
                 <input
                   ref={videoOriginalInputRef}
                   type="file"
@@ -2243,19 +2346,41 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                     e.target.value = '';
                   }}
                 />
-                <button
-                  onClick={() => videoOriginalInputRef.current?.click()}
-                  disabled={subiendoOriginal}
-                  className="w-full inline-flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/30 transition-all cursor-pointer disabled:opacity-50"
+                <div
+                  onClick={() => !subiendoOriginal && videoOriginalInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setArrastrandoVideo(true);
+                  }}
+                  onDragLeave={() => setArrastrandoVideo(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setArrastrandoVideo(false);
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) subirVideoOriginal(f);
+                  }}
+                  className={`flex flex-col items-center justify-center gap-1.5 px-4 py-6 rounded-xl border-2 border-dashed text-center transition-all ${
+                    arrastrandoVideo
+                      ? 'border-cyan-400 bg-cyan-500/10'
+                      : 'border-purple-700/50 bg-[#0b0b18] hover:border-purple-500/70'
+                  } ${subiendoOriginal ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}`}
                 >
-                  {subiendoOriginal ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                  <span>{subiendoOriginal ? 'Subiendo vídeo…' : '2. Subir el vídeo descargado'}</span>
-                </button>
+                  {subiendoOriginal ? (
+                    <Loader2 className="w-6 h-6 animate-spin text-purple-300" />
+                  ) : (
+                    <Upload className="w-6 h-6 text-purple-300" />
+                  )}
+                  <span className="text-sm font-bold text-white">
+                    {subiendoOriginal ? 'Subiendo vídeo…' : 'Arrastra aquí el vídeo o haz clic para elegirlo'}
+                  </span>
+                  <span className="text-[11px] text-slate-400">MP4, MOV, MKV o WEBM</span>
+                </div>
               </div>
 
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                Al subirlo, ClipForge cortará cada clip con FFmpeg y te dejará <strong className="text-slate-200">descargarlo en MP4</strong>
-                {' '}(y generarlo en vertical 9:16 con subtítulos). Usa contenido propio o del que tengas derechos.
+                Al subirlo, ClipForge cortará cada clip y te dejará{' '}
+                <strong className="text-slate-200">descargarlo en MP4</strong> (y en vertical 9:16 con subtítulos).
+                El corte se hace en tu navegador, así que puede tardar. Usa contenido propio o del que tengas derechos.
               </p>
             </div>
           </div>

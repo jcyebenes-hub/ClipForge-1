@@ -183,6 +183,10 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   }
   const videoIdYt = proyecto?.url_youtube ? extraerIdYoutube(proyecto.url_youtube) : null;
   const esYoutube = Boolean(videoIdYt) && !proyecto?.video_url;
+  // El contenedor del iframe de YouTube solo se monta cuando hay transcripción
+  // (SECTION D). Si el efecto del reproductor no depende de esto, se ejecuta antes
+  // de que exista el contenedor y nunca crea el player (se queda "Cargando…").
+  const reproductorMontado = Boolean(transcriptData);
 
   // Resolver URL real de reproducción cuando el proyecto tiene archivo en storage (subida)
   useEffect(() => {
@@ -286,7 +290,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       ytPlayerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [esYoutube, videoIdYt]);
+  }, [esYoutube, videoIdYt, reproductorMontado]);
 
   // Polling de tiempo para el reproductor de YouTube (el <video> usa onTimeUpdate)
   useEffect(() => {

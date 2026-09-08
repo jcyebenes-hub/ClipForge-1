@@ -122,6 +122,25 @@ comprueba(
   `65→${formatoSegundos(65)}`
 );
 
+
+// 7) elegirArchivo según orientación (regresión: en vertical no debe coger un archivo pequeño)
+const base = { id: 1, pagina: '', imagen: '', duracionSeg: 10, autor: 'x', autorUrl: '', archivos: [] as any[] };
+const mk = (alto: number, ancho: number) => ({ id: alto, calidad: '', tipo: 'video/mp4', ancho, alto, enlace: 'https://x/' + alto + '.mp4' });
+
+const vertical = { ...base, ancho: 1080, alto: 1920, archivos: [mk(3840, 2160), mk(1920, 1080), mk(960, 540)] };
+comprueba(
+  'en vertical elige 1080x1920 y no el pequeño de 960',
+  elegirArchivo(vertical)?.alto === 1920,
+  `elegido ${elegirArchivo(vertical)?.alto}p`
+);
+
+const horizontal = { ...base, ancho: 1920, alto: 1080, archivos: [mk(2160, 3840), mk(1080, 1920), mk(720, 1280)] };
+comprueba(
+  'en horizontal elige 1920x1080',
+  elegirArchivo(horizontal)?.alto === 1080,
+  `elegido ${elegirArchivo(horizontal)?.alto}p`
+);
+
 servidor.close();
 console.log(fallos === 0 ? '\nRESULTADO: todas las comprobaciones pasaron' : `\nRESULTADO: ${fallos} fallaron`);
 process.exit(fallos === 0 ? 0 : 1);

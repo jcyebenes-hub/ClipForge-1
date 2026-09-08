@@ -134,20 +134,25 @@ export async function buscarVideosStock(
 }
 
 /**
- * Elige el archivo más adecuado: mp4, con la altura más cercana a `altoObjetivo`
- * sin pasarse demasiado (por defecto 1080p). Devuelve null si no hay mp4.
+ * Elige el archivo más adecuado: mp4 con la altura más cercana al objetivo.
+ *
+ * El objetivo depende de la orientación del vídeo: en horizontal (16:9) el
+ * equivalente a Full HD son 1080 px de alto, pero en vertical (9:16) son 1920 px
+ * (1080×1920). Si se usara siempre 1080, en un vídeo vertical se acabaría eligiendo
+ * un archivo pequeño (p. ej. 540×960) por ser el "más cercano" a 1080.
  */
 export function elegirArchivo(
   video: VideoStock,
-  altoObjetivo = 1080
+  altoObjetivo?: number
 ): ArchivoVideoStock | null {
   if (!video.archivos.length) return null;
+  const objetivo = altoObjetivo ?? (video.alto >= video.ancho ? 1920 : 1080);
   const conAlto = video.archivos.filter((a) => a.alto && a.alto > 0);
   const candidatos = conAlto.length ? conAlto : video.archivos;
   return [...candidatos].sort((a, b) => {
-    const da = Math.abs((a.alto || 0) - altoObjetivo);
-    const db = Math.abs((b.alto || 0) - altoObjetivo);
-    if (da !== db) return da - db; // el más cercano a 1080p
+    const da = Math.abs((a.alto || 0) - objetivo);
+    const db = Math.abs((b.alto || 0) - objetivo);
+    if (da !== db) return da - db; // el más cercano al objetivo
     return (b.alto || 0) - (a.alto || 0); // a igualdad, el de más resolución
   })[0];
 }

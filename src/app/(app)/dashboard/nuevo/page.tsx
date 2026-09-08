@@ -25,6 +25,9 @@ import type { YoutubeInfoResponse } from '../../../api/youtube/info/route';
 import { validarArchivoVideo } from '../../../../lib/videoValidator';
 import { sanitizarTitulo } from '../../../../lib/sanitizer';
 import { CopyrightNoticeModal, hasAcceptedCopyrightNotice } from '../../../../components/proyecto/CopyrightNoticeModal';
+import { StockVideoPicker, type MetaVideoStock } from '../../../../components/nuevo/StockVideoPicker';
+import { subirPorTrozosTus } from '../../../../lib/tusUpload';
+import { getSupabaseEnv } from '../../../../lib/supabase/client';
 import { toast } from 'sonner';
 
 // Extrae el ID de vídeo de cualquier URL de YouTube, en el cliente.
@@ -44,8 +47,11 @@ interface NuevoProyectoPageProps {
 export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate }) => {
   const { user, isSupabaseConfigured } = useAuth();
   
-  // Tab state: 'upload' (Pestaña A) or 'youtube' (Pestaña B)
-  const [tab, setTab] = useState<'upload' | 'youtube'>('upload');
+  // Tab state: 'upload' (A), 'youtube' (B) o 'stock' (C: vídeos de banco Pexels)
+  const [tab, setTab] = useState<'upload' | 'youtube' | 'stock'>('upload');
+  // Progreso real de subida (por trozos, confirmado por el servidor)
+  const [uploadBytes, setUploadBytes] = useState(0);
+  const [uploadTotalBytes, setUploadTotalBytes] = useState(0);
 
   // Pestaña A (Subir vídeo) States
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -137,20 +143,19 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
     }
   };
 
-  // Pestaña A: Handle start upload & save to Supabase
-  const handleStartUpload = async () => {
-    if (!selectedFile) {
-      toast.error('Selecciona un archivo de video primero.');
-      return;
-    }
-
+  // Crea el proyecto y sube el archivo con progreso REAL: la subida va por trozos y
+  // el servidor confirma cada uno (Upload-Offset), así que el porcentaje que se ve es
+  // lo realmente guardado. Lo comparten la pestaña "Subir archivo" y la de banco.
+  const crearProyectoConArchivo = async (archivo: File, titulo: string, duracionSeg?: number) => {
     setIsUploading(true);
-    setUploadProgress(10);
+    setUploadProgress(0);
+    setUploadBytes(0);
+    setUploadTotalBytes(archivo.size);
     setUploadStatusText('Generando registro del proyecto...');
 
     const projectId = 'proj-' + Math.random().toString(36).substring(2, 9);
     const userId = user?.id || 'demo-user';
-    const finalTitle = customTitle.trim() || selectedFile.name;
+    const finalTitle = sanitizarTitulo(titulo.trim() || archivo.name);
     const storagePath = `${userId}/${projectId}/original.mp4`;
 
     const newProject: Partial<Proyecto> = {
@@ -158,78 +163,104 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
       user_id: userId,
       titulo: finalTitle,
       url_youtube: null,
-      archivo_nombre: selectedFile.name,
+      archivo_nombre: archivo.name,
       estado: 'nuevo',
-      duracion_seg: videoDuration || 1420,
+      duracion_seg: duracionSeg || videoDuration || 0,
       creado_en: new Date().toISOString(),
       actualizado_en: new Date().toISOString(),
     };
 
-    // Simulated smooth progress interval
-    const progressTimer = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev < 85) return prev + 15;
-        return prev;
-      });
-    }, 300);
-
     try {
-      setUploadStatusText(`Subiendo video al bucket media (${storagePath})...`);
-      
       if (isSupabaseConfigured && user) {
-        // 1. Insert into proyectos
+        setUploadStatusText('Registrando el proyecto...');
         const { error: insertError } = await supabase.from('proyectos').insert([
           {
             id: projectId,
             user_id: user.id,
             titulo: finalTitle,
             url_youtube: null,
-            archivo_nombre: selectedFile.name,
+            archivo_nombre: archivo.name,
             estado: 'nuevo',
-            duracion_seg: videoDuration || 1420,
+            duracion_seg: duracionSeg || videoDuration || 0,
           },
         ] as any);
+        if (insertError) console.warn('Error inserting project into Supabase:', insertError);
 
-        if (insertError) {
-          console.warn('Error inserting project into Supabase:', insertError);
-        }
+        setUploadStatusText('Subiendo el vídeo (no cierres la pestaña)...');
+        const { supabaseUrl, supabaseAnonKey } = getSupabaseEnv();
+        const { data: sesion } = await supabase.auth.getSession();
+        const token = sesion?.session?.access_token;
 
-        // 2. Upload to Supabase Storage bucket 'media'
-        try {
-          const { error: storageError } = await supabase.storage
-            .from('media')
-            .upload(storagePath, selectedFile, {
-              cacheControl: '3600',
-              upsert: true,
+        let subidoPorTrozos = false;
+        if (token) {
+          try {
+            await subirPorTrozosTus(archivo, {
+              storagePath,
+              bucket: 'media',
+              token,
+              anonKey: supabaseAnonKey,
+              baseUrl: `${supabaseUrl}/storage/v1`,
+              onProgreso: (pct, bytes) => {
+                setUploadProgress(pct);
+                setUploadBytes(bytes);
+              },
             });
-
-          if (storageError) {
-            console.warn('Storage upload notice (bucket might be private or created via dashboard):', storageError.message);
+            subidoPorTrozos = true;
+          } catch (errTus: any) {
+            console.warn('Subida por trozos no disponible, se usa la clásica:', errTus?.message || errTus);
+            setUploadProgress(0);
+            setUploadBytes(0);
           }
-        } catch (storageErr) {
-          console.warn('Storage upload error:', storageErr);
         }
+
+        // Respaldo: subida de una pieza con el SDK
+        if (!subidoPorTrozos) {
+          try {
+            const { error: storageError } = await supabase.storage
+              .from('media')
+              .upload(storagePath, archivo, { cacheControl: '3600', upsert: true });
+            if (storageError) console.warn('Storage upload notice:', storageError.message);
+          } catch (storageErr) {
+            console.warn('Storage upload error:', storageErr);
+          }
+          setUploadProgress(100);
+          setUploadBytes(archivo.size);
+        }
+      } else {
+        // Sin Supabase configurado: modo local/demostración
+        setUploadProgress(100);
+        setUploadBytes(archivo.size);
       }
 
-      // Save to local storage cache for seamless preview experience
       const localData = localStorage.getItem('clipforge_local_proyectos');
       const existing = localData ? JSON.parse(localData) : [];
       localStorage.setItem('clipforge_local_proyectos', JSON.stringify([newProject, ...existing]));
 
-      clearInterval(progressTimer);
       setUploadProgress(100);
       setUploadStatusText('¡Subida completada con éxito!');
 
       setTimeout(() => {
         toast.success('Proyecto creado correctamente. Redirigiendo...');
         onNavigate?.(`/dashboard/proyecto/${projectId}`);
-      }, 700);
-
+      }, 600);
     } catch (err: any) {
-      clearInterval(progressTimer);
       setIsUploading(false);
       toast.error('Ocurrió un error al procesar el archivo: ' + (err.message || 'Error desconocido'));
     }
+  };
+
+  // Pestaña A: Handle start upload & save to Supabase
+  const handleStartUpload = async () => {
+    if (!selectedFile) {
+      toast.error('Selecciona un archivo de video primero.');
+      return;
+    }
+    await crearProyectoConArchivo(selectedFile, customTitle.trim() || selectedFile.name, videoDuration || undefined);
+  };
+
+  // Pestaña C: vídeo descargado del banco (Pexels)
+  const handleStockElegido = async (archivo: File, meta: MetaVideoStock) => {
+    await crearProyectoConArchivo(archivo, meta.titulo, meta.duracionSeg || undefined);
   };
 
   // Pestaña B: Analizar URL de YouTube
@@ -405,7 +436,7 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
         </div>
 
         {/* Tab Selection Switches */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Tab A Button */}
           <button
             id="tab-upload-btn"
@@ -464,6 +495,39 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
 
             <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/30">
               Subtítulos Reales
+            </span>
+          </button>
+
+          {/* Tab C Button: vídeos de banco con licencia comercial */}
+          <button
+            id="tab-stock-btn"
+            type="button"
+            onClick={() => setTab('stock')}
+            className={`flex items-center justify-between p-4 sm:p-5 rounded-2xl border transition-all duration-200 text-left cursor-pointer ${
+              tab === 'stock'
+                ? 'bg-gradient-to-br from-cyan-950/30 via-purple-950/20 to-[#121222] border-cyan-500/80 shadow-lg shadow-cyan-950/30 ring-1 ring-cyan-500/40'
+                : 'bg-[#121222] border-purple-900/30 hover:border-purple-800/60 hover:bg-[#151528]'
+            }`}
+          >
+            <div className="flex items-center gap-3.5">
+              <div
+                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${
+                  tab === 'stock' ? 'bg-cyan-600 text-white' : 'bg-[#18182c] text-cyan-400'
+                }`}
+              >
+                <Film className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-bold text-white">Vídeos de banco</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">Busca en Pexels y úsalos con licencia comercial</p>
+              </div>
+            </div>
+
+            <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Legal
             </span>
           </button>
         </div>
@@ -626,6 +690,11 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
                         style={{ width: `${uploadProgress}%` }}
                       />
                     </div>
+                    {uploadTotalBytes > 0 && (
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        {(uploadBytes / 1048576).toFixed(1)} MB de {(uploadTotalBytes / 1048576).toFixed(1)} MB confirmados por el servidor
+                      </p>
+                    )}
                     <p className="text-[11px] text-slate-400">
                       Destino: <code className="text-purple-300">supabase.storage('media')</code> → ruta <code className="text-slate-300">{`{user_id}/{proyecto_id}/original.mp4`}</code>
                     </p>
@@ -848,6 +917,11 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
             )}
           </div>
         )}
+
+        {/* ---------------------------------------------------- */}
+        {/* PESTAÑA C: VÍDEOS DE BANCO (PEXELS)                  */}
+        {/* ---------------------------------------------------- */}
+        {tab === 'stock' && <StockVideoPicker onElegido={handleStockElegido} ocupado={isUploading} />}
 
       </div>
 

@@ -25,7 +25,6 @@ import type { YoutubeInfoResponse } from '../../../api/youtube/info/route';
 import { validarArchivoVideo } from '../../../../lib/videoValidator';
 import { sanitizarTitulo } from '../../../../lib/sanitizer';
 import { CopyrightNoticeModal, hasAcceptedCopyrightNotice } from '../../../../components/proyecto/CopyrightNoticeModal';
-import { StockVideoPicker, type MetaVideoStock } from '../../../../components/nuevo/StockVideoPicker';
 import { subirPorTrozosTus } from '../../../../lib/tusUpload';
 import { getSupabaseEnv } from '../../../../lib/supabase/client';
 import { toast } from 'sonner';
@@ -47,8 +46,8 @@ interface NuevoProyectoPageProps {
 export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate }) => {
   const { user, isSupabaseConfigured } = useAuth();
   
-  // Tab state: 'upload' (A), 'youtube' (B) o 'stock' (C: vídeos de banco Pexels)
-  const [tab, setTab] = useState<'upload' | 'youtube' | 'stock'>('upload');
+  // Tab state: 'upload' (Pestaña A) or 'youtube' (Pestaña B)
+  const [tab, setTab] = useState<'upload' | 'youtube'>('upload');
   // Progreso real de subida (por trozos, confirmado por el servidor)
   const [uploadBytes, setUploadBytes] = useState(0);
   const [uploadTotalBytes, setUploadTotalBytes] = useState(0);
@@ -258,11 +257,6 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
     await crearProyectoConArchivo(selectedFile, customTitle.trim() || selectedFile.name, videoDuration || undefined);
   };
 
-  // Pestaña C: vídeo descargado del banco (Pexels)
-  const handleStockElegido = async (archivo: File, meta: MetaVideoStock) => {
-    await crearProyectoConArchivo(archivo, meta.titulo, meta.duracionSeg || undefined);
-  };
-
   // Pestaña B: Analizar URL de YouTube
   const handleAnalyzeYoutube = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -436,7 +430,7 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
         </div>
 
         {/* Tab Selection Switches */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Tab A Button */}
           <button
             id="tab-upload-btn"
@@ -498,38 +492,6 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
             </span>
           </button>
 
-          {/* Tab C Button: vídeos de banco con licencia comercial */}
-          <button
-            id="tab-stock-btn"
-            type="button"
-            onClick={() => setTab('stock')}
-            className={`flex items-center justify-between p-4 sm:p-5 rounded-2xl border transition-all duration-200 text-left cursor-pointer ${
-              tab === 'stock'
-                ? 'bg-gradient-to-br from-cyan-950/30 via-purple-950/20 to-[#121222] border-cyan-500/80 shadow-lg shadow-cyan-950/30 ring-1 ring-cyan-500/40'
-                : 'bg-[#121222] border-purple-900/30 hover:border-purple-800/60 hover:bg-[#151528]'
-            }`}
-          >
-            <div className="flex items-center gap-3.5">
-              <div
-                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${
-                  tab === 'stock' ? 'bg-cyan-600 text-white' : 'bg-[#18182c] text-cyan-400'
-                }`}
-              >
-                <Film className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-bold text-white">Vídeos de banco</span>
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">Busca en Pexels y úsalos con licencia comercial</p>
-              </div>
-            </div>
-
-            <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Legal
-            </span>
-          </button>
         </div>
 
         {/* ---------------------------------------------------- */}
@@ -917,11 +879,6 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
             )}
           </div>
         )}
-
-        {/* ---------------------------------------------------- */}
-        {/* PESTAÑA C: VÍDEOS DE BANCO (PEXELS)                  */}
-        {/* ---------------------------------------------------- */}
-        {tab === 'stock' && <StockVideoPicker onElegido={handleStockElegido} ocupado={isUploading} />}
 
       </div>
 

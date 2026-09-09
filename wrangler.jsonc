@@ -1,0 +1,15 @@
+{
+  // Configuración de Cloudflare Pages para ClipForge.
+  //
+  // - pages_build_output_dir: la carpeta que genera `npm run build` (Vite).
+  // - nodejs_compat: IMPRESCINDIBLE. src/lib/supabase/client.ts crea el cliente de
+  //   Supabase al cargar el módulo y lee process.env; sin este flag el runtime de
+  //   Workers lanza "process is not defined" al arrancar. Con el flag, Cloudflare
+  //   Pages rellena process.env con las variables del proyecto.
+  // - compatibility_date: la que soporta el workerd local (para que `wrangler pages
+  //   dev` y el despliegue real usen el mismo comportamiento).
+  "name": "clipforge",
+  "compatibility_date": "2026-05-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "pages_build_output_dir": "dist"
+}

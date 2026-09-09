@@ -10,3 +10,6 @@ coverage/
 # Credenciales locales (NUNCA subir)
 CREDENCIALES.md
 .env.local
+
+# Caché local de Wrangler / Cloudflare
+.wrangler/

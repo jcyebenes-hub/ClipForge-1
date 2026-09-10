@@ -411,6 +411,8 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
         videoSource: videoBlob,
         onProgress,
         useFastCopy: false, // ensures exact frame keying
+        // El plan gratuito descarga el clip con marca de agua, igual que el Short.
+        marcaDeAgua: !profile?.plan || profile.plan === 'gratis',
       });
 
       addLog(`Corte completado para "${clip.titulo_hook}". Tamaño generado: ${(result.blob.size / (1024 * 1024)).toFixed(2)} MB.`);

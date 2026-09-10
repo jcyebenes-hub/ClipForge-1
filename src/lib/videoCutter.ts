@@ -77,6 +77,8 @@ export function parseFFmpegTime(logMsg: string): number | null {
   return null;
 }
 
+import { generarASSMarcaDeAgua } from './marcaDeAgua';
+
 export interface CutClipOptions {
   clipId: string;
   inicioSeg: number;
@@ -84,6 +86,8 @@ export interface CutClipOptions {
   videoSource: Blob | string; // Blob or URL
   onProgress?: CutProgressCallback;
   useFastCopy?: boolean; // Try stream copy first
+  /** Plan gratuito: quema la marca de agua 'ClipForge'. Obliga a re-codificar. */
+  marcaDeAgua?: boolean;
 }
 
 /**
@@ -91,7 +95,7 @@ export interface CutClipOptions {
  * Returns the cut MP4 Blob and an Object URL for immediate preview.
  */
 export async function cutVideoSegment(options: CutClipOptions): Promise<{ blob: Blob; previewUrl: string }> {
-  const { clipId, inicioSeg, finSeg, videoSource, onProgress, useFastCopy = false } = options;
+  const { clipId, inicioSeg, finSeg, videoSource, onProgress, useFastCopy = false, marcaDeAgua = false } = options;
   const duracion = Math.max(1, finSeg - inicioSeg);
 
   onProgress?.({
@@ -175,8 +179,9 @@ export async function cutVideoSegment(options: CutClipOptions): Promise<{ blob: 
   // Command execution
   let cutSuccess = false;
 
-  // Try stream copy if requested
-  if (useFastCopy) {
+  // Try stream copy if requested.
+  // Con marca de agua no se puede usar: un filtro de vídeo exige re-codificar.
+  if (useFastCopy && !marcaDeAgua) {
     try {
       await ffmpeg.exec([
         '-ss', inicioSeg.toString(),
@@ -195,17 +200,39 @@ export async function cutVideoSegment(options: CutClipOptions): Promise<{ blob: 
 
   // Standard re-encode
   if (!cutSuccess) {
-    await ffmpeg.exec([
+    const argsEntrada = [
       '-ss', inicioSeg.toString(),
       '-i', inputName,
       '-t', duracion.toString(),
+    ];
+    const argsSalida = [
       '-c:v', 'libx264',
       '-preset', 'fast',
       '-crf', '23',
       '-c:a', 'aac',
       '-movflags', '+faststart',
       outputName,
-    ]);
+    ];
+
+    let conMarca = false;
+    if (marcaDeAgua) {
+      const nombreAss = `marca_${clipId}.ass`;
+      try {
+        await ffmpeg.writeFile(nombreAss, new TextEncoder().encode(generarASSMarcaDeAgua(duracion)));
+        await ffmpeg.exec([...argsEntrada, '-vf', `ass=${nombreAss}`, ...argsSalida]);
+        conMarca = true;
+      } catch (err) {
+        // La marca de agua es un extra. Si libass no estuviera disponible en este
+        // navegador, se entrega el clip SIN marca antes que romper la descarga,
+        // que es la función esencial de la aplicación.
+        console.warn('[videoCutter] No se pudo quemar la marca de agua; se exporta sin ella.', err);
+        try { await ffmpeg.deleteFile(nombreAss); } catch {}
+      }
+    }
+
+    if (!conMarca) {
+      await ffmpeg.exec([...argsEntrada, ...argsSalida]);
+    }
   }
 
   onProgress?.({

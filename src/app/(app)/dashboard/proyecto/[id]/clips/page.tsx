@@ -59,6 +59,7 @@ import { ConfirmProcessModal } from '../../../../../../components/proyecto/Confi
 import { trackClipExported, trackError } from '../../../../../../lib/analytics';
 import { comprobarCuotaMensual, registrarMinutosProcesados } from '../../../../../../lib/planGratis';
 import { ApoyarClipForge } from '../../../../../../components/nuevo/ApoyarClipForge';
+import { AsistenteShort } from '../../../../../../components/nuevo/AsistenteShort';
 import { toast } from 'sonner';
 
 export interface ProcessedClipState {
@@ -119,6 +120,8 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
 
   const [proyecto, setProyecto] = useState<Proyecto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [asistenteClip, setAsistenteClip] = useState<ProcessedClipState | null>(null);
+  const [mostrarTecnicos, setMostrarTecnicos] = useState(false);
   const [clipsQueue, setClipsQueue] = useState<ProcessedClipState[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isProcessingAll, setIsProcessingAll] = useState(false);
@@ -1201,7 +1204,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                 </h1>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/30">
                   <Scissors className="w-3.5 h-3.5 text-pink-400" />
-                  FFmpeg WASM Multithread
+                  Listo para TikTok, Reels y Shorts
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
@@ -1254,8 +1257,19 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           </div>
         </div>
 
-        {/* Plan gratuito: invitación a Ko-fi + lista de espera del plan Pro */}
-        <ApoyarClipForge titulo="¿Te está siendo útil ClipForge?" />
+        {/* Asistente de 2 preguntas antes de generar */}
+        <AsistenteShort
+          clip={asistenteClip}
+          onCerrar={() => setAsistenteClip(null)}
+          onGenerar={(d) => {
+            const c = asistenteClip;
+            setAsistenteClip(null);
+            if (!c) return;
+            if (d.modo === 'short') void handleGenerarShortCompleto(c, d.estilo);
+            else if (d.modo === 'vertical') void handleConvertToVertical(c);
+            else void handleDownloadClip(c);
+          }}
+        />
 
         {/* SECTION 1: Master Status / Progress Banner */}
         <div className="bg-gradient-to-br from-[#131326] via-[#16162d] to-[#121222] border border-purple-900/50 rounded-2xl p-6 shadow-2xl space-y-4">
@@ -1317,17 +1331,27 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
         </div>
 
         {/* SECTION 2: Grid of Clips & Active Previews */}
+        {/* Los paneles de ingeniería quedan ocultos por defecto */}
+        <div className="flex justify-end">
+          <button
+            onClick={() => setMostrarTecnicos(v => !v)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-purple-900/40 bg-[#121222] px-3 py-1.5 text-xs font-semibold text-slate-400 transition hover:text-white cursor-pointer"
+          >
+            {mostrarTecnicos ? 'Ocultar detalles técnicos' : 'Detalles técnicos'}
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
           {/* Left Column: Clips List & Interactive Cards (8 Cols) */}
-          <div className="lg:col-span-8 space-y-4">
+          <div className={`${mostrarTecnicos ? "lg:col-span-8" : "lg:col-span-12"} space-y-4`}>
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                 <Sliders className="w-4 h-4 text-purple-400" />
                 <span>Segmentos a Cortar ({clipsQueue.length})</span>
               </h2>
               <span className="text-xs text-slate-400">
-                Calidad: <strong className="text-cyan-300">H.264 CRF 23 Fast</strong>
+                Calidad: <strong className="text-cyan-300">alta</strong>
               </span>
             </div>
 
@@ -1532,7 +1556,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                               </button>
                             ) : (
                               <button
-                                onClick={() => handleGenerarShortCompleto(clip)}
+                                onClick={() => setAsistenteClip(clip)}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white shadow-md shadow-pink-950 transition-all cursor-pointer"
                                 title="Genera el Short final: Recorte 9:16 inteligente + subtítulos animados quemados con FFmpeg"
                               >
@@ -1920,7 +1944,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                               </div>
                               <div className="flex items-center gap-2">
                                 <button
-                                  onClick={() => handleGenerarShortCompleto(clip)}
+                                  onClick={() => setAsistenteClip(clip)}
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-sm hover:from-pink-500 hover:to-purple-500 cursor-pointer"
                                 >
                                   <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
@@ -1971,7 +1995,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                               )}
                               <div className="pt-1 flex items-center gap-3 flex-wrap">
                                 <button
-                                  onClick={() => handleGenerarShortCompleto(clip)}
+                                  onClick={() => setAsistenteClip(clip)}
                                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white shadow-sm transition-all cursor-pointer"
                                 >
                                   <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
@@ -2006,6 +2030,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           </div>
 
           {/* Right Column: Real-Time FFmpeg Console & Storage Info (4 Cols) */}
+          {mostrarTecnicos ? (
           <div className="lg:col-span-4 space-y-4 sticky top-6">
             
             {/* Smart Framing Specs Card */}
@@ -2146,7 +2171,11 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
             </div>
 
           </div>
+          ) : null}
         </div>
+
+        {/* Invitación a Ko-fi y lista de espera: al final, fuera del flujo de trabajo */}
+        <ApoyarClipForge titulo="¿Te está siendo útil ClipForge?" />
 
       </div>
 

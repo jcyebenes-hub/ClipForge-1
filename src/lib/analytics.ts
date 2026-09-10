@@ -73,7 +73,10 @@ export async function trackEvent(
         tipo,
         ruta,
         user_id: userId || null,
-        metadata: JSON.stringify(metadata),
+        // Se pasa el OBJETO, no su texto. La columna es jsonb: si se manda
+        // JSON.stringify() se guarda una cadena JSON y la metadata queda sin
+        // poder consultarse (metadata->>'campo' devuelve NULL).
+        metadata,
         fecha: timestamp,
       })
       .then(() => {})

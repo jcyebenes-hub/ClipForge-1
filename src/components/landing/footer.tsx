@@ -1,4 +1,5 @@
 import React from 'react';
+import { ApoyarClipForge } from '../nuevo/ApoyarClipForge';
 import { Video, Sparkles, Heart, Shield, Terminal, ArrowUp, Github, Twitter, Youtube, Instagram } from 'lucide-react';
 
 interface FooterProps {
@@ -16,6 +17,8 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPrivacy, onOpenTerms, onOp
     <footer className="bg-[#06060c] border-t border-purple-950/40 text-slate-400 text-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 lg:py-16">
         
+        <ApoyarClipForge className="mb-12" />
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-8 mb-12">
           
           {/* Brand & Mission Column */}

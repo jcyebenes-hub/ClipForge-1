@@ -17,7 +17,9 @@ export type TipoEvento =
   | 'clip_exportado'
   | 'error_sistema'
   | 'cambio_idioma'
-  | 'conexion_youtube';
+  | 'conexion_youtube'
+  | 'correo_capturado'
+  | 'click_donacion';
 
 export interface EventoData {
   id?: string;

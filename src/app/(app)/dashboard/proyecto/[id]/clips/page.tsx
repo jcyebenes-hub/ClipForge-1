@@ -57,6 +57,8 @@ import {
 } from '../../../../../../lib/downloadHelper';
 import { ConfirmProcessModal } from '../../../../../../components/proyecto/ConfirmProcessModal';
 import { trackClipExported, trackError } from '../../../../../../lib/analytics';
+import { comprobarCuotaMensual, registrarMinutosProcesados } from '../../../../../../lib/planGratis';
+import { ApoyarClipForge } from '../../../../../../components/nuevo/ApoyarClipForge';
 import { toast } from 'sonner';
 
 export interface ProcessedClipState {
@@ -958,6 +960,27 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
     
     addLog(`Iniciando generación de Short Completo (Vertical 9:16 + Subtítulos [${SUBTITLE_STYLES[selectedStyle]?.label || selectedStyle}] + Hook: "${hookTextToBurn}") para "${clip.titulo_hook}"...`);
 
+    // Cuota del plan gratuito: se comprueba ANTES de gastar CPU, almacenamiento
+    // y ancho de banda. Vive en el navegador porque es aquí donde el cliente de
+    // Supabase lleva la sesión del usuario (las rutas API usan la clave anon y
+    // RLS les deniega escribir en uso_usuario).
+    const duracionClipSeg = Math.max(
+      1,
+      Math.round((clip.fin_seg || (clip.inicio_seg + (clip.duracion_seg || 0))) - clip.inicio_seg)
+    );
+    const cuota = await comprobarCuotaMensual(user?.id, undefined, profile?.plan);
+    if (!cuota.permitido) {
+      setClipsQueue(prev => prev.map(c => c.id === clip.id ? {
+        ...c,
+        short_estado: 'error',
+        short_progreso: 0,
+        short_etapa_texto: cuota.mensaje || 'Límite mensual del plan gratuito alcanzado',
+      } : c));
+      addLog(`Límite del plan gratuito: ${cuota.mensaje}`);
+      toast.error(cuota.mensaje || 'Has alcanzado el límite mensual del plan gratuito.');
+      return;
+    }
+
     setClipsQueue(prev => prev.map(c => c.id === clip.id ? {
       ...c,
       estilo_subtitulos: selectedStyle,
@@ -1113,6 +1136,9 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
         short_etapa_texto: `Short Completo 9:16 + Subtítulos (${SUBTITLE_STYLES[selectedStyle].label})`,
       } : c));
 
+      // Se contabiliza solo si todo ha ido bien (fail-open: si el registro falla no bloquea).
+      void registrarMinutosProcesados(duracionClipSeg / 60, user?.id);
+
       toast.success(`¡Short completo con subtítulos listo para "${clip.titulo_hook}"!`);
 
     } catch (err: any) {
@@ -1225,6 +1251,9 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
             </button>
           </div>
         </div>
+
+        {/* Plan gratuito: invitación a Ko-fi + lista de espera del plan Pro */}
+        <ApoyarClipForge titulo="¿Te está siendo útil ClipForge?" />
 
         {/* SECTION 1: Master Status / Progress Banner */}
         <div className="bg-gradient-to-br from-[#131326] via-[#16162d] to-[#121222] border border-purple-900/50 rounded-2xl p-6 shadow-2xl space-y-4">

@@ -218,6 +218,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const ytApiReadyRef = useRef<boolean>(false);
   // Estado (no ref) para que el overlay de "Cargando…" se quite al repintar cuando el player está listo.
   const [ytReady, setYtReady] = useState(false);
+  const [ytError, setYtError] = useState<string | null>(null);
 
   function extraerIdYoutube(url: string | null): string | null {
     if (!url) return null;
@@ -287,6 +288,16 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     if (!esYoutube || !videoIdYt) return;
 
     let destruido = false;
+    setYtError(null);
+    // Si el reproductor no avisa de que está listo en 12 s, se deja de esperar.
+    // Antes el aviso de «Cargando…» giraba para siempre sin dar ninguna salida.
+    const temporizador = window.setTimeout(() => {
+      if (destruido) return;
+      if (!ytApiReadyRef.current) {
+        setYtReady(true);
+        setYtError('El reproductor de YouTube no ha respondido.');
+      }
+    }, 12000);
 
     (async () => {
       try {
@@ -324,12 +335,14 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
         });
       } catch (err) {
         console.warn('Error cargando reproductor de YouTube:', err);
-        toast.error('No se pudo cargar el reproductor de YouTube.');
+        setYtReady(true);
+        setYtError('No se pudo cargar el reproductor de YouTube.');
       }
     })();
 
     return () => {
       destruido = true;
+      window.clearTimeout(temporizador);
       ytApiReadyRef.current = false;
       setYtReady(false);
       if (ytPlayerRef.current?.destroy) {
@@ -1932,6 +1945,31 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                             <span className="text-xs font-semibold">Cargando reproductor de YouTube…</span>
                           </div>
                         )}
+                        {ytError ? (
+                          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/85 px-6 text-center">
+                            <AlertCircle className="w-8 h-8 text-amber-400" />
+                            <p className="text-xs font-bold text-slate-100">{ytError}</p>
+                            <p className="text-[11px] text-slate-400 leading-relaxed max-w-[16rem]">
+                              Suele pasar con el bloqueador de anuncios o en navegación privada.
+                            </p>
+                            <a
+                              href={`https://www.youtube.com/watch?v=${videoIdYt}${
+                                activeClipPreview ? `&t=${Math.floor(activeClipPreview.inicio_seg)}s` : ''
+                              }`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-500"
+                            >
+                              <Youtube className="w-3.5 h-3.5" />
+                              {activeClipPreview ? 'Ver este trozo en YouTube' : 'Ver el vídeo en YouTube'}
+                            </a>
+                            <p className="text-[11px] text-slate-500 leading-relaxed max-w-[16rem]">
+                              Si subes el archivo original, la previsualización es instantánea y no
+                              depende de YouTube.
+                            </p>
+                          </div>
+                        ) : null}
+
                         {/* Active Clip Preview Badge */}
                         {activeClipPreview && (
                           <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md border border-purple-500/60 px-3 py-1 rounded-lg text-xs font-bold text-pink-300 flex items-center gap-1.5 shadow-lg z-10 pointer-events-none">

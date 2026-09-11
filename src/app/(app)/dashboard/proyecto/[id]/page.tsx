@@ -1217,18 +1217,34 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   };
 
   // Abre el descargador dejando el enlace YA copiado: el usuario solo pega (Ctrl+V)
+  // En móvil no hay Ctrl+V: las instrucciones cambian según el dispositivo.
+  const esMovil = () =>
+    typeof window !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
   const abrirDescargador = async (destino: string) => {
+    // La pestaña se abre ANTES de copiar: si esperamos al await, el navegador
+    // considera agotado el gesto del usuario y bloquea la ventana emergente
+    // (pasa sobre todo en Safari de iOS).
+    const ventana = window.open(destino, '_blank', 'noopener');
     const enlace = proyecto?.url_youtube || '';
     if (enlace) {
       const ok = await copiarAlPortapapeles(enlace);
       if (ok) {
         marcarEnlaceCopiado();
-        toast.success('Enlace copiado. En el descargador pega con Ctrl+V y pulsa Descargar.');
+        toast.success(
+          esMovil()
+            ? 'Enlace copiado. En el descargador: mantén pulsado y elige Pegar.'
+            : 'Enlace copiado. En el descargador: pega con Ctrl+V y pulsa Descargar.'
+        );
       } else {
-        toast('Copia el enlace del paso 1 y pégalo en el descargador.');
+        toast('No se pudo copiar solo: usa el botón Copiar del paso 1.');
       }
     }
-    window.open(destino, '_blank', 'noopener');
+    if (!ventana) {
+      toast.error(
+        'El navegador ha bloqueado la pestaña nueva. Permite las ventanas emergentes en esta web, o abre el descargador a mano.'
+      );
+    }
   };
 
   // Sube el archivo de vídeo original (descargado por el usuario) para poder cortar y
@@ -2442,8 +2458,20 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                   <ExternalLink className="w-4 h-4 text-cyan-300 shrink-0" />
                 </button>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  En la página que se abre: <strong className="text-slate-200">pega con Ctrl+V</strong> y pulsa{' '}
-                  <strong className="text-slate-200">Download</strong>, y elige MP4. Si no funciona, prueba{' '}
+                  {esMovil() ? (
+                    <>
+                      En la página que se abre, <strong className="text-slate-200">mantén pulsado y elige Pegar</strong>.
+                      Pulsa <strong className="text-slate-200">Download</strong> y escoge MP4.
+                    </>
+                  ) : (
+                    <>
+                      En la página que se abre, <strong className="text-slate-200">pega con Ctrl+V</strong> y pulsa{' '}
+                      <strong className="text-slate-200">Download</strong>. Escoge MP4.
+                    </>
+                  )}
+                </p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  ¿No funciona? Prueba con{' '}
                   <a
                     href="https://cobalt.tools/"
                     target="_blank"
@@ -2452,7 +2480,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                   >
                     cobalt.tools
                   </a>
-                  .
+                  : mismo procedimiento.
                 </p>
               </div>
 

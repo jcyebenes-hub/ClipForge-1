@@ -147,7 +147,14 @@ app.get(`${api}/cron/vigilar-canal`, adapt(cronVigilarGET));
 
 // Ruta de salud (para Render / monitors)
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, servicio: 'clipforge', hora: new Date().toISOString() });
+  res.json({
+    ok: true,
+    servicio: 'clipforge',
+    hora: new Date().toISOString(),
+    // Diagnóstico: qué COEP ha fijado realmente el middleware en esta respuesta.
+    coep_fijada: String(res.getHeader('Cross-Origin-Embedder-Policy') ?? 'ninguna'),
+    marca: 'coep-diagnostico-1',
+  });
 });
 
 // ---------------------------------------------------------------------------

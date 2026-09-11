@@ -49,9 +49,17 @@ const PORT = Number(process.env.PORT) || 3100;
 
 // Cross-Origin-Isolation: imprescindible para ffmpeg.wasm multihilo (core-mt)
 // en el navegador (SharedArrayBuffer). Mismo comportamiento que el dev server.
+//
+// El valor es 'credentialless' y NO 'require-corp' a propósito:
+// con 'require-corp' el navegador solo deja incrustar iframes de terceros que
+// traigan su propia COEP exigible, y el embed de YouTube responde con
+// 'cross-origin-embedder-policy-report-only' (solo informe). El resultado era
+// que el iframe se bloqueaba en silencio y el reproductor se quedaba cargando
+// para siempre. 'credentialless' mantiene el documento aislado (SharedArrayBuffer
+// sigue disponible) y a cambio permite esos iframes.
 app.use((_req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
   next();
 });
 

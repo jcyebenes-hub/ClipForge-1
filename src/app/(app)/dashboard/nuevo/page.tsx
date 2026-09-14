@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Upload, 
   Youtube, 
@@ -66,6 +66,21 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
 
   // Pestaña B (URL de YouTube) States
   const [youtubeUrl, setYoutubeUrl] = useState('');
+
+  // Recoge el enlace que el usuario escribió en la landing. Llega por
+  // localStorage porque entre medias puede haber registro o inicio de sesión.
+  useEffect(() => {
+    try {
+      const pendiente = localStorage.getItem('clipforge_pendiente_youtube');
+      if (pendiente) {
+        localStorage.removeItem('clipforge_pendiente_youtube');
+        setTab('youtube');
+        setYoutubeUrl(pendiente);
+      }
+    } catch {
+      /* sin localStorage no pasa nada: el usuario pega el enlace a mano */
+    }
+  }, []);
   const [isAnalyzingYt, setIsAnalyzingYt] = useState(false);
   const [ytInfo, setYtInfo] = useState<YoutubeInfoResponse | null>(null);
   const [isDownloadingYt, setIsDownloadingYt] = useState(false);

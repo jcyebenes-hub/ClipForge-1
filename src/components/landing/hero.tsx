@@ -16,6 +16,9 @@ import {
 } from 'lucide-react';
 import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 
+/** Clave con la que la landing pasa el enlace a la página de nuevo proyecto. */
+export const CLAVE_ENLACE_PENDIENTE = 'clipforge_pendiente_youtube';
+
 interface HeroProps {
   onStartFree?: () => void;
   onWatchDemo?: () => void;
@@ -28,6 +31,18 @@ export const Hero: React.FC<HeroProps> = ({ onStartFree, onWatchDemo }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // El enlace escrito se guardaba en un estado que nadie leía: el botón
+    // llevaba al registro y la URL se perdía. Ahora se deja guardada para que
+    // la página de nuevo proyecto la recoja al entrar. Se usa localStorage y no
+    // un parámetro en la URL porque el camino puede pasar por el registro.
+    const url = demoUrl.trim();
+    if (/^(https?:\/\/)?(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\//i.test(url)) {
+      try {
+        localStorage.setItem(CLAVE_ENLACE_PENDIENTE, url);
+      } catch {
+        /* sin localStorage el usuario simplemente vuelve a pegar el enlace */
+      }
+    }
     if (onStartFree) onStartFree();
   };
 

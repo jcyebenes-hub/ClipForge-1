@@ -570,6 +570,8 @@ export interface GenerarShortOptions {
   aspectRatio?: AspectRatioOption;
   onProgress?: (p: VerticalCropProgress) => void;
   segmentDuration?: number; // default 1.0s segments
+  /** Fondo desenfocado: rellena el 9:16 con el fotograma difuminado y el vídeo nítido centrado. */
+  fondoDesenfocado?: boolean;
 }
 
 /**
@@ -578,6 +580,22 @@ export interface GenerarShortOptions {
  * - 'deportes': Motion tracking via 8x6 pixel difference grid
  * - 'centrado': Direct static center crop
  */
+/**
+ * Filtro para el modo de fondo desenfocado (equivalente al modo GENERAL de los
+ * recortadores de referencia): el fotograma completo, difuminado y escalado,
+ * rellena el lienzo vertical, y encima se superpone el vídeo nítido ajustado al
+ * ancho. Es puro (devuelve el filter_complex) para poder probarlo sin FFmpeg.
+ */
+export function filtroVerticalConFondo(targetW: number, targetH: number, radio = 0): string {
+  const r = radio > 0 ? Math.round(radio) : Math.max(8, Math.round(targetW / 24));
+  return [
+    `[0:v]split=2[cf_bg][cf_fg]`,
+    `[cf_bg]scale=${targetW}:${targetH}:force_original_aspect_ratio=increase,crop=${targetW}:${targetH},boxblur=luma_radius=${r}:luma_power=2:chroma_radius=${r}:chroma_power=2[cf_blur]`,
+    `[cf_fg]scale=${targetW}:-2[cf_fit]`,
+    `[cf_blur][cf_fit]overlay=(W-w)/2:(H-h)/2`,
+  ].join(';');
+}
+
 export async function generarShortVertical(options: GenerarShortOptions): Promise<{
   blob: Blob;
   previewUrl: string;
@@ -585,7 +603,7 @@ export async function generarShortVertical(options: GenerarShortOptions): Promis
   facesCount: number;
   enfoqueUsado: TipoEnfoque;
 }> {
-  const { clipId, videoSource, inicioSeg, finSeg, enfoque = 'rostro', aspectRatio = '9:16', onProgress, segmentDuration = 1.0 } = options;
+  const { clipId, videoSource, inicioSeg, finSeg, enfoque = 'rostro', aspectRatio = '9:16', onProgress, segmentDuration = 1.0, fondoDesenfocado = false } = options;
   const totalDuration = Math.max(1, finSeg - inicioSeg);
 
   let targetW = 1080;
@@ -751,7 +769,9 @@ export async function generarShortVertical(options: GenerarShortOptions): Promis
       '-ss', inicioSeg.toString(),
       '-i', masterInputName,
       '-t', totalDuration.toString(),
-      '-vf', `crop=${singleCrop.w}:${singleCrop.h}:${singleCrop.x}:${singleCrop.y},scale=${targetW}:${targetH}:force_original_aspect_ratio=increase,crop=${targetW}:${targetH}`,
+      ...(fondoDesenfocado
+        ? ['-filter_complex', filtroVerticalConFondo(targetW, targetH)]
+        : ['-vf', `crop=${singleCrop.w}:${singleCrop.h}:${singleCrop.x}:${singleCrop.y},scale=${targetW}:${targetH}:force_original_aspect_ratio=increase,crop=${targetW}:${targetH}`]),
       '-c:v', 'libx264',
       '-preset', 'fast',
       '-crf', '23',
@@ -807,7 +827,9 @@ export async function generarShortVertical(options: GenerarShortOptions): Promis
       '-ss', seg.startSec.toString(),
       '-i', masterInputName,
       '-t', segDuration.toString(),
-      '-vf', `crop=${seg.crop.w}:${seg.crop.h}:${seg.crop.x}:${seg.crop.y},scale=${targetW}:${targetH}:force_original_aspect_ratio=increase,crop=${targetW}:${targetH}`,
+      ...(fondoDesenfocado
+        ? ['-filter_complex', filtroVerticalConFondo(targetW, targetH)]
+        : ['-vf', `crop=${seg.crop.w}:${seg.crop.h}:${seg.crop.x}:${seg.crop.y},scale=${targetW}:${targetH}:force_original_aspect_ratio=increase,crop=${targetW}:${targetH}`]),
       '-c:v', 'libx264',
       '-preset', 'ultrafast',
       '-crf', '23',

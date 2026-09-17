@@ -33,6 +33,7 @@ import {
   Youtube,
   Music,
   Upload,
+  Layers,
 } from 'lucide-react';
 import { useAuth } from '../../../../../../context/AuthContext';
 import { useYouTube } from '../../../../../../context/YouTubeAuthContext';
@@ -127,6 +128,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
   const [asistenteClip, setAsistenteClip] = useState<ProcessedClipState | null>(null);
   const [mostrarTecnicos, setMostrarTecnicos] = useState(false);
   const [musica, setMusica] = useState<{ blob: Blob; volumen: number; nombre: string } | null>(null);
+  const [fondoDesenfocado, setFondoDesenfocado] = useState(false);
   const [clipsQueue, setClipsQueue] = useState<ProcessedClipState[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isProcessingAll, setIsProcessingAll] = useState(false);
@@ -799,6 +801,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
         inicioSeg: clip.inicio_seg,
         finSeg: clip.fin_seg || (clip.inicio_seg + clip.duracion_seg),
         enfoque: selectedEnfoque,
+        fondoDesenfocado,
         onProgress,
         segmentDuration: 1.0,
       });
@@ -1046,6 +1049,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           inicioSeg: clip.inicio_seg,
           finSeg: clip.fin_seg || (clip.inicio_seg + clip.duracion_seg),
           enfoque: selectedEnfoque,
+          fondoDesenfocado,
           onProgress: (p) => {
             setClipsQueue(prev => prev.map(c => c.id === clip.id ? {
               ...c,
@@ -1411,6 +1415,22 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
               Por ahora solo se aplica a la descarga del clip.
             </span>
           )}
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setFondoDesenfocado((v) => !v)}
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer ${
+              fondoDesenfocado
+                ? 'bg-cyan-950 text-cyan-300 border-cyan-700'
+                : 'bg-[#121222] text-slate-400 border-purple-900/40 hover:bg-[#1a1a36]'
+            }`}
+            title="Rellena el 9:16 con el fotograma desenfocado y el vídeo nítido centrado (ideal sin rostro claro)"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Fondo desenfocado 9:16: {fondoDesenfocado ? 'sí' : 'no'}
+          </button>
         </div>
 
         {/* Los paneles de ingeniería quedan ocultos por defecto */}

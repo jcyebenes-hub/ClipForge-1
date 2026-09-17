@@ -35,6 +35,7 @@ import {
   Upload,
   Layers,
   Columns2,
+  Clapperboard,
 } from 'lucide-react';
 import { useAuth } from '../../../../../../context/AuthContext';
 import { useYouTube } from '../../../../../../context/YouTubeAuthContext';
@@ -64,6 +65,7 @@ import { trackClipExported, trackError } from '../../../../../../lib/analytics';
 import { comprobarCuotaMensual, registrarMinutosProcesados } from '../../../../../../lib/planGratis';
 import { ApoyarClipForge } from '../../../../../../components/nuevo/ApoyarClipForge';
 import { AsistenteShort } from '../../../../../../components/nuevo/AsistenteShort';
+import { EspacioDeTrabajoShort } from '../../../../../../components/nuevo/EspacioDeTrabajoShort';
 import { VOLUMEN_POR_DEFECTO } from '../../../../../../lib/musicaFondo';
 import { firmarUrlVideo, rutaDesdeUrlPublica } from '../../../../../../lib/storageUrl';
 
@@ -141,6 +143,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
   const [musica, setMusica] = useState<{ blob: Blob; volumen: number; nombre: string } | null>(null);
   const [fondoDesenfocado, setFondoDesenfocado] = useState<boolean>(() => leerEncuadreGuardado(effectiveId).fondo);
   const [modoSplit, setModoSplit] = useState<boolean>(() => leerEncuadreGuardado(effectiveId).split);
+  const [clipEnFocoId, setClipEnFocoId] = useState<string | null>(null);
 
   // Recuerda los modos de encuadre por proyecto para la próxima visita.
   useEffect(() => {
@@ -151,6 +154,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
     }
   }, [modoSplit, fondoDesenfocado, effectiveId]);
   const [clipsQueue, setClipsQueue] = useState<ProcessedClipState[]>([]);
+  const clipEnFoco = clipsQueue.find((c) => c.id === clipEnFocoId) || null;
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isProcessingAll, setIsProcessingAll] = useState(false);
   const [overallLog, setOverallLog] = useState<string[]>([]);
@@ -1647,6 +1651,15 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                               </button>
                               <button
                                 type="button"
+                                onClick={() => setClipEnFocoId(clip.id)}
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 text-purple-300 hover:bg-purple-950/40 transition-all cursor-pointer"
+                                title="Abrir el asistente paso a paso para este short"
+                              >
+                                <Clapperboard className="w-3 h-3" />
+                                <span>Paso a paso</span>
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handleUpdateEnfoque(clip.id, 'rostro')}
                                 disabled={clip.vertical_estado === 'procesando' || clip.short_estado === 'procesando'}
                                 className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
@@ -2371,6 +2384,28 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
         <ApoyarClipForge titulo="¿Te está siendo útil ClipForge?" />
 
       </div>
+
+      {/* Asistente paso a paso (espacio de trabajo) */}
+      {clipEnFoco && (
+        <EspacioDeTrabajoShort
+          clip={clipEnFoco}
+          onClose={() => setClipEnFocoId(null)}
+          acciones={{
+            setEnfoque: (e) => handleUpdateEnfoque(clipEnFoco.id, e),
+            sugerir: () => void handleSugerirEncuadre(clipEnFoco),
+            setSplit: setModoSplit,
+            setFondo: setFondoDesenfocado,
+            split: modoSplit,
+            fondo: fondoDesenfocado,
+            generar: (est) => void handleGenerarShortCompleto(clipEnFoco, est),
+            vertical: () => void handleConvertToVertical(clipEnFoco),
+            descargar: () => void handleDownloadClip(clipEnFoco),
+            copiar: () => void handleCopyLink(clipEnFoco),
+            youtube: () => setUploadModalClip(clipEnFoco),
+            tiktok: () => setTiktokExportClip(clipEnFoco),
+          }}
+        />
+      )}
 
       {/* YouTube Upload Modal */}
       {uploadModalClip && (

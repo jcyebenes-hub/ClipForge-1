@@ -572,6 +572,8 @@ export interface GenerarShortOptions {
   segmentDuration?: number; // default 1.0s segments
   /** Fondo desenfocado: rellena el 9:16 con el fotograma difuminado y el vídeo nítido centrado. */
   fondoDesenfocado?: boolean;
+  /** Split: apila mitad izquierda (arriba) y derecha (abajo) en 9:16, para planos de dos personas. */
+  modoSplit?: boolean;
 }
 
 /**
@@ -596,6 +598,22 @@ export function filtroVerticalConFondo(targetW: number, targetH: number, radio =
   ].join(';');
 }
 
+/**
+ * Modo SPLIT para planos de dos personas lado a lado (el típico pódcast): la mitad
+ * izquierda del fotograma va arriba y la derecha abajo, cada una escalada para
+ * llenar medio lienzo 9:16. Es geométrico (sin ML), puro y, por tanto, probable.
+ * Devuelve el filter_complex para poder probarlo sin FFmpeg.
+ */
+export function filtroSplitDosPlanos(targetW: number, targetH: number): string {
+  const halfH = Math.round(targetH / 2);
+  return [
+    `[0:v]split=2[sp_a][sp_b]`,
+    `[sp_a]crop=iw/2:ih:0:0,scale=${targetW}:${halfH}:force_original_aspect_ratio=increase,crop=${targetW}:${halfH}[sp_top]`,
+    `[sp_b]crop=iw/2:ih:iw/2:0,scale=${targetW}:${halfH}:force_original_aspect_ratio=increase,crop=${targetW}:${halfH}[sp_bot]`,
+    `[sp_top][sp_bot]vstack=inputs=2`,
+  ].join(';');
+}
+
 export async function generarShortVertical(options: GenerarShortOptions): Promise<{
   blob: Blob;
   previewUrl: string;
@@ -603,7 +621,9 @@ export async function generarShortVertical(options: GenerarShortOptions): Promis
   facesCount: number;
   enfoqueUsado: TipoEnfoque;
 }> {
-  const { clipId, videoSource, inicioSeg, finSeg, enfoque = 'rostro', aspectRatio = '9:16', onProgress, segmentDuration = 1.0, fondoDesenfocado = false } = options;
+  const { clipId, videoSource, inicioSeg, finSeg, enfoque = 'rostro', aspectRatio = '9:16', onProgress, segmentDuration = 1.0, fondoDesenfocado = false, modoSplit = false } = options;
+  // En modo Split el rastreo de rostros/movimiento no aporta: se usa un layout estático.
+  const runEnfoque: TipoEnfoque = modoSplit ? 'centrado' : enfoque;
   const totalDuration = Math.max(1, finSeg - inicioSeg);
 
   let targetW = 1080;
@@ -628,14 +648,14 @@ export async function generarShortVertical(options: GenerarShortOptions): Promis
       stage: 'suavizando',
       detail: 'Modo 16:9 (YouTube horizontal): manteniendo encuadre original completo...',
     });
-  } else if (enfoque === 'centrado') {
+  } else if (runEnfoque === 'centrado') {
     onProgress?.({
       clipId,
       percent: 20,
       stage: 'suavizando',
       detail: `Modo Centrado: aplicando recorte ${aspectRatio} estático centrado...`,
     });
-  } else if (enfoque === 'deportes') {
+  } else if (runEnfoque === 'deportes') {
     onProgress?.({
       clipId,
       percent: 5,
@@ -751,8 +771,46 @@ export async function generarShortVertical(options: GenerarShortOptions): Promis
   const masterInputName = `src_${clipId}.mp4`;
   await ffmpeg.writeFile(masterInputName, inputBytes);
 
+  // Modo Split: render de un solo paso con el lienzo apilado.
+  if (modoSplit && aspectRatio === '9:16') {
+    const outName = `split_${clipId}.mp4`;
+    onProgress?.({
+      clipId,
+      percent: 65,
+      stage: 'renderizando_segmentos',
+      detail: 'Modo Split: apilando plano izquierdo (arriba) y derecho (abajo)...',
+      currentSegment: 1,
+      totalSegments: 1,
+    });
+
+    await ffmpeg.exec([
+      '-ss', inicioSeg.toString(),
+      '-i', masterInputName,
+      '-t', totalDuration.toString(),
+      '-filter_complex', filtroSplitDosPlanos(targetW, targetH),
+      '-c:v', 'libx264',
+      '-preset', 'fast',
+      '-crf', '23',
+      '-c:a', 'aac',
+      '-movflags', '+faststart',
+      outName,
+    ]);
+
+    const outData = (await ffmpeg.readFile(outName)) as Uint8Array;
+    const blob = new Blob([outData.buffer], { type: 'video/mp4' });
+    const previewUrl = URL.createObjectURL(blob);
+
+    try {
+      await ffmpeg.deleteFile(masterInputName);
+      await ffmpeg.deleteFile(outName);
+    } catch {}
+
+    onProgress?.({ clipId, percent: 100, stage: 'completado', detail: '¡Short Split 9:16 renderizado!' });
+    return { blob, previewUrl, hasFaces: false, facesCount: 0, enfoqueUsado: 'centrado' };
+  }
+
   // If 16:9 mode, centered mode, or no tracking points detected, or only 1 segment: render directly in a single fast pass
-  if (aspectRatio === '16:9' || enfoque === 'centrado' || !hasTrackingPoints || segmentCrops.length <= 1) {
+  if (aspectRatio === '16:9' || runEnfoque === 'centrado' || !hasTrackingPoints || segmentCrops.length <= 1) {
     const singleCrop = segmentCrops[0]?.crop || calcularCrop(videoWidth / 2, videoWidth, videoHeight, aspectRatio);
     const outName = `vertical_${clipId}.mp4`;
 

@@ -34,6 +34,7 @@ import {
   Music,
   Upload,
   Layers,
+  Columns2,
 } from 'lucide-react';
 import { useAuth } from '../../../../../../context/AuthContext';
 import { useYouTube } from '../../../../../../context/YouTubeAuthContext';
@@ -129,6 +130,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
   const [mostrarTecnicos, setMostrarTecnicos] = useState(false);
   const [musica, setMusica] = useState<{ blob: Blob; volumen: number; nombre: string } | null>(null);
   const [fondoDesenfocado, setFondoDesenfocado] = useState(false);
+  const [modoSplit, setModoSplit] = useState(false);
   const [clipsQueue, setClipsQueue] = useState<ProcessedClipState[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isProcessingAll, setIsProcessingAll] = useState(false);
@@ -802,6 +804,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
         finSeg: clip.fin_seg || (clip.inicio_seg + clip.duracion_seg),
         enfoque: selectedEnfoque,
         fondoDesenfocado,
+        modoSplit,
         onProgress,
         segmentDuration: 1.0,
       });
@@ -1050,6 +1053,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           finSeg: clip.fin_seg || (clip.inicio_seg + clip.duracion_seg),
           enfoque: selectedEnfoque,
           fondoDesenfocado,
+          modoSplit,
           onProgress: (p) => {
             setClipsQueue(prev => prev.map(c => c.id === clip.id ? {
               ...c,
@@ -1430,6 +1434,22 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           >
             <Layers className="w-3.5 h-3.5" />
             Fondo desenfocado 9:16: {fondoDesenfocado ? 'sí' : 'no'}
+          </button>
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setModoSplit((v) => !v)}
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer ${
+              modoSplit
+                ? 'bg-pink-950 text-pink-300 border-pink-700'
+                : 'bg-[#121222] text-slate-400 border-purple-900/40 hover:bg-[#1a1a36]'
+            }`}
+            title="Para planos de dos personas: apila la mitad izquierda arriba y la derecha abajo"
+          >
+            <Columns2 className="w-3.5 h-3.5" />
+            Split 2 personas: {modoSplit ? 'sí' : 'no'}
           </button>
         </div>
 

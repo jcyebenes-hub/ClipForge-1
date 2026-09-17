@@ -63,6 +63,7 @@ import { comprobarCuotaMensual, registrarMinutosProcesados } from '../../../../.
 import { ApoyarClipForge } from '../../../../../../components/nuevo/ApoyarClipForge';
 import { AsistenteShort } from '../../../../../../components/nuevo/AsistenteShort';
 import { VOLUMEN_POR_DEFECTO } from '../../../../../../lib/musicaFondo';
+import { firmarUrlVideo, rutaDesdeUrlPublica } from '../../../../../../lib/storageUrl';
 import { toast } from 'sonner';
 
 export interface ProcessedClipState {
@@ -321,6 +322,25 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           creado_en: new Date().toISOString(),
           actualizado_en: new Date().toISOString(),
         });
+
+        // El bucket 'media' es privado: las URLs públicas guardadas responden
+        // 400 y el <video> se queda en negro. Se canjean por URLs firmadas.
+        loadedClips = await Promise.all(
+          loadedClips.map(async (c) => {
+            const resolver = async (url?: string, ruta?: string | null) => {
+              const base = ruta || (url ? rutaDesdeUrlPublica(url) : null);
+              if (!base) return url;
+              const firmada = await firmarUrlVideo(base);
+              return firmada ?? url;
+            };
+            return {
+              ...c,
+              preview_url: await resolver(c.preview_url, c.bucket_path),
+              video_vertical_url: await resolver(c.video_vertical_url, c.vertical_bucket_path),
+              video_short_url: await resolver(c.video_short_url, c.short_bucket_path),
+            };
+          })
+        );
 
         setClipsQueue(loadedClips);
       } finally {
@@ -1065,6 +1085,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
 
       // 4. Upload final Short MP4 to Supabase Storage at: {user_id}/{proyecto_id}/clips/{clip_id}_short.mp4
       let shortUrl = burnRes.previewUrl;
+      let shortUrlPersistida = burnRes.previewUrl;
       const userId = user?.id || 'user-demo';
       const shortBucketPath = `${userId}/${effectiveId}/clips/${clip.id}_short.mp4`;
 
@@ -1089,7 +1110,10 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
               .getPublicUrl(shortBucketPath);
 
             if (pubData?.publicUrl) {
-              shortUrl = pubData.publicUrl;
+              // La URL pública NO funciona (bucket privado): se guarda solo como
+              // referencia en la base de datos. Para reproducir ahora mismo se
+              // sigue usando la URL blob local, que sí funciona en esta sesión.
+              shortUrlPersistida = pubData.publicUrl;
             }
 
             // Update clips DB table
@@ -1104,7 +1128,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
               hashtags: clip.hashtags,
               descripcion: clip.descripcion,
               mejor_momento_primera_frase: hookTextToBurn,
-              video_short_url: shortUrl,
+              video_short_url: shortUrlPersistida,
               subtitulos_json: burnRes.assContent,
             });
 

@@ -1,4 +1,5 @@
 import { supabase, getSupabaseEnv } from './supabase/client';
+import { separarBucketYRuta } from './storageUrl';
 import { toast } from 'sonner';
 
 export interface DownloadClipOptions {
@@ -112,9 +113,11 @@ export async function descargarClipMP4(options: DownloadClipOptions): Promise<bo
           description: `Obteniendo ${filename}...`,
         });
 
-        // Determine bucket name (try 'media', 'videos' or 'shorts')
-        const bucketName = bucketPath.includes('/') ? bucketPath.split('/')[0] : 'media';
-        const cleanPath = bucketPath.includes('/') ? bucketPath.substring(bucketPath.indexOf('/') + 1) : bucketPath;
+        // La app guarda rutas SIN el nombre del bucket, así que aquí se separa
+        // solo si el primer segmento es un bucket conocido. Antes se tomaba el
+        // primer segmento a ciegas y se acababa pidiendo un bucket llamado como
+        // el id del usuario, que no existe.
+        const { bucket: bucketName, ruta: cleanPath } = separarBucketYRuta(bucketPath);
 
         try {
           const { data, error } = await supabase.storage.from(bucketName).download(cleanPath);

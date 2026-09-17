@@ -72,6 +72,16 @@ import { getLoadedFFmpeg } from './videoCutter';
  * contenedor (MP4, MOV, WebM...), algo que decodeAudioData del navegador NO
  * garantiza para vídeo multiplexado. Devuelve el WAV y su duración.
  */
+function parsearDuracionFFmpeg(logs: string[]): number {
+  for (const linea of logs) {
+    const m = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(linea);
+    if (m) {
+      return (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]);
+    }
+  }
+  return 0;
+}
+
 async function extraerConFFmpeg(
   arrayBuffer: ArrayBuffer,
   onProgress?: (p: AudioExtractionProgress) => void
@@ -79,38 +89,59 @@ async function extraerConFFmpeg(
   const logs: string[] = [];
   const ffmpeg = await getLoadedFFmpeg((m) => {
     logs.push(m);
-    if (logs.length > 200) logs.shift();
+    if (logs.length > 300) logs.shift();
   });
   const inName = 'audio_in_video.mp4';
-  const outName = 'audio_16k.wav';
 
   await ffmpeg.writeFile(inName, new Uint8Array(arrayBuffer));
   onProgress?.({ percent: 30, stage: 'Extrayendo pista de audio con FFmpeg...' });
 
-  const code = await ffmpeg.exec([
+  // A) Recodificar a WAV 16k mono: lo ideal para Whisper y da la duración exacta.
+  const wavName = 'audio_16k.wav';
+  let code = await ffmpeg.exec([
     '-i', inName,
+    '-map', '0:a:0',
     '-vn',
     '-ac', '1',
     '-ar', '16000',
     '-c:a', 'pcm_s16le',
     '-f', 'wav',
-    outName,
+    wavName,
   ]);
-  if (code !== 0) {
-    throw new Error(`FFmpeg código ${code}: ${logs.slice(-4).join(' | ')}`);
+  if (code === 0) {
+    const out = (await ffmpeg.readFile(wavName)) as Uint8Array;
+    if (out.length > 44) {
+      const duration = (out.length - 44) / (16000 * 2);
+      try { await ffmpeg.deleteFile(inName); await ffmpeg.deleteFile(wavName); } catch {}
+      onProgress?.({ percent: 60, stage: 'Audio preparado para Whisper IA', detail: `Duración: ${Math.round(duration)}s` });
+      return { audioBlob: new Blob([out.buffer], { type: 'audio/wav' }), duration };
+    }
   }
 
-  const out = (await ffmpeg.readFile(outName)) as Uint8Array;
-  const audioBlob = new Blob([out.buffer], { type: 'audio/wav' });
-  const duration = audioBlob.size > 44 ? (audioBlob.size - 44) / (16000 * 2) : 0;
+  // B) Si el códec de audio no se puede recodificar aquí (build WASM sin ese
+  //    decodificador), COPIAR la pista tal cual. No necesita decodificador y
+  //    Whisper la decodifica en su servidor. Mismo truco que usa el corte.
+  const m4aName = 'audio_copy.m4a';
+  code = await ffmpeg.exec([
+    '-i', inName,
+    '-map', '0:a:0',
+    '-vn',
+    '-c:a', 'copy',
+    '-f', 'mp4',
+    m4aName,
+  ]);
+  if (code === 0) {
+    const out = (await ffmpeg.readFile(m4aName)) as Uint8Array;
+    if (out.length > 0) {
+      const duration = parsearDuracionFFmpeg(logs);
+      try { await ffmpeg.deleteFile(inName); await ffmpeg.deleteFile(m4aName); } catch {}
+      onProgress?.({ percent: 60, stage: 'Audio preparado para Whisper IA', detail: `Duración: ${Math.round(duration)}s` });
+      return { audioBlob: new Blob([out.buffer], { type: 'audio/mp4' }), duration };
+    }
+  }
 
-  try {
-    await ffmpeg.deleteFile(inName);
-    await ffmpeg.deleteFile(outName);
-  } catch {}
-
-  onProgress?.({ percent: 60, stage: 'Audio preparado para Whisper IA', detail: `Duración: ${Math.round(duration)}s` });
-  return { audioBlob, duration };
+  try { await ffmpeg.deleteFile(inName); } catch {}
+  throw new Error(`FFmpeg no pudo extraer el audio: ${logs.slice(-5).join(' | ')}`);
 }
 
 export async function extract16kHzAudio(

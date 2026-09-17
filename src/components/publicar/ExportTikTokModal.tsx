@@ -14,6 +14,7 @@ import {
   BookmarkCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ApoyarClipForge } from '../nuevo/ApoyarClipForge';
 
 export interface ExportTikTokModalProps {
   isOpen: boolean;
@@ -213,6 +214,9 @@ export const ExportTikTokModal: React.FC<ExportTikTokModalProps> = ({
           </div>
 
         </div>
+
+        {/* Recordatorio de apoyo al publicar */}
+        <ApoyarClipForge compacto className="mx-4 mt-3" />
 
         {/* Footer */}
         <div className="p-4 border-t border-cyan-900/30 bg-[#0a0a14] flex items-center justify-between">

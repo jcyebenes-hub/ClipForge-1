@@ -19,6 +19,7 @@ import {
 import { useYouTube } from '../../context/YouTubeAuthContext';
 import type { ResumableUploadResult } from '../../lib/youtubeUploader';
 import { toast } from 'sonner';
+import { ApoyarClipForge } from '../nuevo/ApoyarClipForge';
 
 export interface YouTubeUploadModalProps {
   isOpen: boolean;
@@ -437,6 +438,9 @@ export const YouTubeUploadModal: React.FC<YouTubeUploadModalProps> = ({
             </>
           )}
         </div>
+
+        {/* Recordatorio de apoyo al publicar */}
+        <ApoyarClipForge compacto className="mx-4 mt-3" />
 
         {/* Footer Actions */}
         {!uploadResult && (

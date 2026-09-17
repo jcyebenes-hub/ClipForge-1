@@ -78,6 +78,7 @@ export function parseFFmpegTime(logMsg: string): number | null {
 }
 
 import { generarASSMarcaDeAgua } from './marcaDeAgua';
+import { construirFiltrosMusica, VOLUMEN_POR_DEFECTO, type MusicaFondo } from './musicaFondo';
 
 export interface CutClipOptions {
   clipId: string;
@@ -88,6 +89,8 @@ export interface CutClipOptions {
   useFastCopy?: boolean; // Try stream copy first
   /** Plan gratuito: quema la marca de agua 'ClipForge'. Obliga a re-codificar. */
   marcaDeAgua?: boolean;
+  /** Música de fondo: se mezcla con el audio original en bucle y con fundido. */
+  musica?: MusicaFondo;
 }
 
 /**
@@ -95,7 +98,7 @@ export interface CutClipOptions {
  * Returns the cut MP4 Blob and an Object URL for immediate preview.
  */
 export async function cutVideoSegment(options: CutClipOptions): Promise<{ blob: Blob; previewUrl: string }> {
-  const { clipId, inicioSeg, finSeg, videoSource, onProgress, useFastCopy = false, marcaDeAgua = false } = options;
+  const { clipId, inicioSeg, finSeg, videoSource, onProgress, useFastCopy = false, marcaDeAgua = false, musica } = options;
   const duracion = Math.max(1, finSeg - inicioSeg);
 
   onProgress?.({
@@ -181,7 +184,7 @@ export async function cutVideoSegment(options: CutClipOptions): Promise<{ blob: 
 
   // Try stream copy if requested.
   // Con marca de agua no se puede usar: un filtro de vídeo exige re-codificar.
-  if (useFastCopy && !marcaDeAgua) {
+  if (useFastCopy && !marcaDeAgua && !musica) {
     try {
       await ffmpeg.exec([
         '-ss', inicioSeg.toString(),
@@ -200,11 +203,28 @@ export async function cutVideoSegment(options: CutClipOptions): Promise<{ blob: 
 
   // Standard re-encode
   if (!cutSuccess) {
-    const argsEntrada = [
-      '-ss', inicioSeg.toString(),
-      '-i', inputName,
-      '-t', duracion.toString(),
-    ];
+    const nombreAss = `marca_${clipId}.ass`;
+    const nombreMusica = `musica_${clipId}`;
+
+    if (marcaDeAgua) {
+      try {
+        await ffmpeg.writeFile(nombreAss, new TextEncoder().encode(generarASSMarcaDeAgua(duracion)));
+      } catch (err) {
+        console.warn('[videoCutter] No se pudo escribir la marca de agua.', err);
+      }
+    }
+
+    let musicaLista = false;
+    if (musica) {
+      try {
+        await ffmpeg.writeFile(nombreMusica, new Uint8Array(await musica.blob.arrayBuffer()));
+        musicaLista = true;
+      } catch (err) {
+        // Igual que con la marca: un extra nunca debe romper la descarga.
+        console.warn('[videoCutter] No se pudo cargar la música de fondo; se exporta sin ella.', err);
+      }
+    }
+
     const argsSalida = [
       '-c:v', 'libx264',
       '-preset', 'fast',
@@ -213,25 +233,60 @@ export async function cutVideoSegment(options: CutClipOptions): Promise<{ blob: 
       '-movflags', '+faststart',
       outputName,
     ];
+    const argsEntradaLimpia = ['-ss', inicioSeg.toString(), '-i', inputName, '-t', duracion.toString()];
+    const argsEntrada = ['-ss', inicioSeg.toString(), '-i', inputName];
+    // '-stream_loop' tiene que ir delante del '-i' al que afecta.
+    if (musicaLista) argsEntrada.push('-stream_loop', '-1', '-i', nombreMusica);
+    argsEntrada.push('-t', duracion.toString());
 
-    let conMarca = false;
-    if (marcaDeAgua) {
-      const nombreAss = `marca_${clipId}.ass`;
+    /** Monta el comando para una combinación concreta de extras. */
+    const comando = (conMarca: boolean, conMusica: boolean): string[] => {
+      const filtros: string[] = [];
+      if (conMarca) filtros.push(`[0:v]ass=${nombreAss}[vmarca]`);
+      if (conMusica) {
+        const { filtros: fMusica } = construirFiltrosMusica({
+          volumen: musica?.volumen ?? VOLUMEN_POR_DEFECTO,
+          duracionSeg: duracion,
+        });
+        filtros.push(...fMusica);
+      }
+      // Sin filtros no hace falta filter_complex: se deja el mapeo automático.
+      if (filtros.length === 0) return [...argsEntrada, ...argsSalida];
+
+      const mapas = ['-map', conMarca ? '[vmarca]' : '0:v'];
+      // El '?' hace que la ausencia de audio en el origen no sea un error.
+      mapas.push('-map', conMusica ? '[musicamezclada]' : '0:a?');
+      return [...argsEntrada, '-filter_complex', filtros.join(';'), ...mapas, ...argsSalida];
+    };
+
+    // Se prueba la combinación más completa y se va cayendo a versiones más
+    // simples: ni la marca ni la música deben poder romper una descarga.
+    const intentos: Array<[boolean, boolean]> = [[marcaDeAgua, musicaLista]];
+    if (musicaLista) intentos.push([marcaDeAgua, false]);
+    if (marcaDeAgua || musicaLista) intentos.push([false, false]);
+
+    let exportado = false;
+    for (const [conMarca, conMusica] of intentos) {
       try {
-        await ffmpeg.writeFile(nombreAss, new TextEncoder().encode(generarASSMarcaDeAgua(duracion)));
-        await ffmpeg.exec([...argsEntrada, '-vf', `ass=${nombreAss}`, ...argsSalida]);
-        conMarca = true;
+        await ffmpeg.exec(comando(conMarca, conMusica));
+        exportado = true;
+        break;
       } catch (err) {
-        // La marca de agua es un extra. Si libass no estuviera disponible en este
-        // navegador, se entrega el clip SIN marca antes que romper la descarga,
-        // que es la función esencial de la aplicación.
-        console.warn('[videoCutter] No se pudo quemar la marca de agua; se exporta sin ella.', err);
-        try { await ffmpeg.deleteFile(nombreAss); } catch {}
+        console.warn(
+          `[videoCutter] Falló la exportación (marca=${conMarca}, música=${conMusica}); se prueba una versión más simple.`,
+          err
+        );
       }
     }
+    if (!exportado) {
+      // Último recurso: corte limpio, sin entradas ni filtros extra.
+      await ffmpeg.exec([...argsEntradaLimpia, ...argsSalida]);
+    }
 
-    if (!conMarca) {
-      await ffmpeg.exec([...argsEntrada, ...argsSalida]);
+    for (const f of [nombreAss, nombreMusica]) {
+      try {
+        await ffmpeg.deleteFile(f);
+      } catch {}
     }
   }
 

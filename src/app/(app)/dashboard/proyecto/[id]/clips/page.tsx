@@ -31,6 +31,8 @@ import {
   Subtitles,
   Type,
   Youtube,
+  Music,
+  Upload,
 } from 'lucide-react';
 import { useAuth } from '../../../../../../context/AuthContext';
 import { useYouTube } from '../../../../../../context/YouTubeAuthContext';
@@ -60,6 +62,7 @@ import { trackClipExported, trackError } from '../../../../../../lib/analytics';
 import { comprobarCuotaMensual, registrarMinutosProcesados } from '../../../../../../lib/planGratis';
 import { ApoyarClipForge } from '../../../../../../components/nuevo/ApoyarClipForge';
 import { AsistenteShort } from '../../../../../../components/nuevo/AsistenteShort';
+import { VOLUMEN_POR_DEFECTO } from '../../../../../../lib/musicaFondo';
 import { toast } from 'sonner';
 
 export interface ProcessedClipState {
@@ -122,6 +125,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
   const [loading, setLoading] = useState(true);
   const [asistenteClip, setAsistenteClip] = useState<ProcessedClipState | null>(null);
   const [mostrarTecnicos, setMostrarTecnicos] = useState(false);
+  const [musica, setMusica] = useState<{ blob: Blob; volumen: number; nombre: string } | null>(null);
   const [clipsQueue, setClipsQueue] = useState<ProcessedClipState[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isProcessingAll, setIsProcessingAll] = useState(false);
@@ -416,6 +420,8 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
         useFastCopy: false, // ensures exact frame keying
         // El plan gratuito descarga el clip con marca de agua, igual que el Short.
         marcaDeAgua: !profile?.plan || profile.plan === 'gratis',
+        // Música de fondo si el usuario ha elegido una (se mezcla en el navegador).
+        musica: musica ? { blob: musica.blob, volumen: musica.volumen } : undefined,
       });
 
       addLog(`Corte completado para "${clip.titulo_hook}". Tamaño generado: ${(result.blob.size / (1024 * 1024)).toFixed(2)} MB.`);
@@ -1331,6 +1337,58 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
         </div>
 
         {/* SECTION 2: Grid of Clips & Active Previews */}
+        {/* Música de fondo: opcional, solo afecta a la descarga del clip */}
+        <div className="rounded-2xl border border-purple-900/40 bg-[#121222] p-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="flex items-center gap-2 text-xs font-bold text-white shrink-0">
+            <Music className="w-4 h-4 text-cyan-400" />
+            Música de fondo
+          </div>
+          <label className="inline-flex items-center gap-2 rounded-xl border border-purple-700/50 bg-[#1b1b38] px-3 py-2 text-xs font-semibold text-purple-100 transition hover:bg-[#24244a] cursor-pointer shrink-0">
+            <Upload className="w-3.5 h-3.5" />
+            {musica ? 'Cambiar archivo' : 'Elegir audio'}
+            <input
+              type="file"
+              accept="audio/*"
+              className="hidden"
+              onChange={(ev) => {
+                const f = ev.target.files?.[0];
+                if (!f) return;
+                setMusica({ blob: f, volumen: musica?.volumen ?? VOLUMEN_POR_DEFECTO, nombre: f.name });
+                toast.success(`Música de fondo: ${f.name}`);
+              }}
+            />
+          </label>
+          {musica ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <span className="truncate text-[11px] text-slate-400 sm:max-w-[12rem]">{musica.nombre}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[11px] text-slate-500">Volumen</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round(musica.volumen * 100)}
+                  onChange={(ev) => setMusica({ ...musica, volumen: Number(ev.target.value) / 100 })}
+                  className="w-28 accent-cyan-400"
+                  aria-label="Volumen de la música de fondo"
+                />
+                <span className="w-9 text-[11px] font-mono text-cyan-300">{Math.round(musica.volumen * 100)}%</span>
+                <button
+                  onClick={() => setMusica(null)}
+                  className="text-[11px] text-slate-500 transition hover:text-red-400 cursor-pointer"
+                >
+                  Quitar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <span className="text-[11px] leading-relaxed text-slate-500">
+              Opcional. Se mezcla con el audio del clip, en bucle y con fundido al final.
+              Por ahora solo se aplica a la descarga del clip.
+            </span>
+          )}
+        </div>
+
         {/* Los paneles de ingeniería quedan ocultos por defecto */}
         <div className="flex justify-end">
           <button

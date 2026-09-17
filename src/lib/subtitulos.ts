@@ -590,6 +590,108 @@ export interface BurnSubtitlesOptions {
  * Burns ASS subtitles into a vertical or cropped video using FFmpeg WASM.
  * Executes: ffmpeg -i clip_vertical.mp4 -vf "ass=subtitulos.ass" -c:a copy -c:v libx264 -preset fast -crf 23 short_final.mp4
  */
+async function quemarSubtitulosCanvas(opts: {
+  verticalVideoBlob: Blob;
+  groups: SubtitleGroup[];
+  stylePreset: SubtitleStylePreset;
+  marcaDeAgua: boolean;
+  hookText?: string;
+  onProgress?: (p: { percent: number; stage: string; detail: string }) => void;
+}): Promise<Blob> {
+  const { verticalVideoBlob, groups, stylePreset, marcaDeAgua, hookText, onProgress } = opts;
+
+  const video = document.createElement('video');
+  const objUrl = URL.createObjectURL(verticalVideoBlob);
+  video.src = objUrl;
+  video.playsInline = true;
+  video.muted = false;
+
+  await new Promise<void>((res, rej) => {
+    video.onloadedmetadata = () => res();
+    video.onerror = () => rej(new Error('No se pudo cargar el vídeo para quemar subtítulos'));
+  });
+
+  const W = video.videoWidth || 1080;
+  const H = video.videoHeight || 1920;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Sin contexto 2D para quemar subtítulos');
+
+  const fps = 30;
+  const canvasStream = canvas.captureStream(fps);
+  try {
+    const vStream: MediaStream | null = (video as any).captureStream ? (video as any).captureStream() : null;
+    const audioTrack = vStream?.getAudioTracks?.()[0];
+    if (audioTrack) canvasStream.addTrack(audioTrack);
+  } catch { /* sin audio: se graba solo vídeo */ }
+
+  const mime =
+    ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
+      .find((m) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) || '';
+  const rec = new MediaRecorder(
+    canvasStream,
+    mime ? { mimeType: mime, videoBitsPerSecond: 6_000_000 } : undefined
+  );
+  const chunks: BlobPart[] = [];
+  rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  const finished = new Promise<Blob>((res) => {
+    rec.onstop = () => res(new Blob(chunks, { type: mime || 'video/webm' }));
+  });
+
+  const hookEnd = hookText ? 1.5 : 0;
+  const drawFrame = () => {
+    ctx.drawImage(video, 0, 0, W, H);
+    renderSubtitulosEnCanvas(ctx, W, H, groups, video.currentTime, stylePreset, marcaDeAgua);
+    if (hookText && video.currentTime <= hookEnd) {
+      ctx.save();
+      ctx.font = `bold ${Math.round(W / 15)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const y = Math.round(H * 0.16);
+      const tw = ctx.measureText(hookText).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(W / 2 - tw / 2 - 24, y - 44, tw + 48, 88);
+      ctx.fillStyle = '#FFE45E';
+      ctx.fillText(hookText, W / 2, y);
+      ctx.restore();
+    }
+  };
+
+  const usaRVFC = typeof (video as any).requestVideoFrameCallback === 'function';
+  let activo = true;
+  const loop = () => {
+    if (!activo) return;
+    drawFrame();
+    if (usaRVFC) (video as any).requestVideoFrameCallback(loop);
+    else requestAnimationFrame(loop);
+  };
+
+  const dur = video.duration || 1;
+  video.ontimeupdate = () => {
+    const pct = Math.min(88, Math.round(30 + (video.currentTime / dur) * 55));
+    onProgress?.({ percent: pct, stage: 'quemando_subtitulos', detail: `Dibujando subtítulos (${video.currentTime.toFixed(1)}s / ${dur.toFixed(1)}s)...` });
+  };
+
+  await new Promise<void>((res) => { video.onseeked = () => res(); video.currentTime = 0; });
+  rec.start(200);
+  loop();
+  try {
+    await video.play();
+  } catch {
+    video.muted = true;
+    await video.play();
+  }
+  await new Promise<void>((res) => {
+    video.onended = () => { activo = false; res(); };
+  });
+  rec.stop();
+  const blob = await finished;
+  try { URL.revokeObjectURL(objUrl); } catch {}
+  return blob;
+}
+
 export async function quemarSubtitulosVideo(options: BurnSubtitlesOptions): Promise<{
   blob: Blob;
   previewUrl: string;
@@ -633,6 +735,34 @@ export async function quemarSubtitulosVideo(options: BurnSubtitlesOptions): Prom
     marcaDeAgua: activeWatermark,
   });
   const groups = agruparPalabrasEnFrases(words, inicioSeg, finSeg, 3);
+
+  // Quemado por CANVAS + MediaRecorder: el build WASM de FFmpeg NO incluye libass,
+  // así que los filtros ass=/subtitles= fallan y no se veían subtítulos. El canvas
+  // reutiliza el renderer del karaoke en vivo y no depende de libass.
+  if (groups.length > 0 || hookText) {
+    try {
+      onProgress?.({ percent: 28, stage: 'quemando_subtitulos', detail: 'Quemando subtítulos por canvas...' });
+      const canvasBlob = await quemarSubtitulosCanvas({
+        verticalVideoBlob,
+        groups,
+        stylePreset,
+        marcaDeAgua: activeWatermark,
+        hookText,
+        onProgress,
+      });
+      if (canvasBlob && canvasBlob.size > 0) {
+        onProgress?.({ percent: 95, stage: 'exportando', detail: 'Short con subtítulos listo.' });
+        return {
+          blob: canvasBlob,
+          previewUrl: URL.createObjectURL(canvasBlob),
+          assContent,
+          groupsCount: groups.length,
+        };
+      }
+    } catch (canvasErr) {
+      console.warn('Quemado por canvas falló; se intenta FFmpeg (puede no tener libass):', canvasErr);
+    }
+  }
 
   onProgress?.({
     percent: 25,

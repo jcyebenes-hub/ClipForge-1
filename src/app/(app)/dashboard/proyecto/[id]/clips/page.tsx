@@ -869,7 +869,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
         fondoDesenfocado,
         modoSplit,
         onProgress,
-        segmentDuration: 1.0,
+        segmentDuration: 0.5,
       });
 
       addLog(`Encuadre 9:16 completado para "${clip.titulo_hook}". Modo: ${result.enfoqueUsado}. Puntos/rostros: ${result.facesCount}. Tamaño: ${(result.blob.size / (1024 * 1024)).toFixed(2)} MB.`);
@@ -1124,7 +1124,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
               short_etapa_texto: `Paso 1/2: ${p.detail}`,
             } : c));
           },
-          segmentDuration: 1.0,
+          segmentDuration: 0.5, // segmentos más cortos: el crop sigue la cara con saltos más pequeños y frecuentes (menos "cabezazos")
         });
         vertBlob = vertRes.blob;
       }

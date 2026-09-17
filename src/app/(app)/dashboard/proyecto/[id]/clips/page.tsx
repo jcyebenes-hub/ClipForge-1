@@ -1528,11 +1528,11 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                       </div>
 
                       {/* Status Action Buttons, Focus & Subtitles Controls */}
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 self-end sm:self-auto flex-wrap">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto sm:self-auto flex-wrap">
                         {isListo && (
                           <div className="flex flex-wrap items-center gap-2">
                             {/* Focus Selector: Rostro | Deportes | Centrado */}
-                            <div className="flex items-center gap-1 bg-[#0d0d1b] p-1 rounded-xl border border-purple-900/40">
+                            <div className="flex flex-wrap items-center gap-1 bg-[#0d0d1b] p-1 rounded-xl border border-purple-900/40">
                               <span className="text-[11px] font-semibold text-slate-400 px-1.5 flex items-center gap-1">
                                 <Sliders className="w-3 h-3 text-cyan-400" />
                                 Enfoque:
@@ -1582,7 +1582,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                             </div>
 
                             {/* Subtitle Style Selector: Moderno | Neón | Minimal */}
-                            <div className="flex items-center gap-1 bg-[#0d0d1b] p-1 rounded-xl border border-pink-900/40">
+                            <div className="flex flex-wrap items-center gap-1 bg-[#0d0d1b] p-1 rounded-xl border border-pink-900/40">
                               <span className="text-[11px] font-semibold text-slate-400 px-1.5 flex items-center gap-1">
                                 <Subtitles className="w-3 h-3 text-pink-400" />
                                 Subs:

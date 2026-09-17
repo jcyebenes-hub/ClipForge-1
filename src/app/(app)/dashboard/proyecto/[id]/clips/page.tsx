@@ -66,6 +66,16 @@ import { ApoyarClipForge } from '../../../../../../components/nuevo/ApoyarClipFo
 import { AsistenteShort } from '../../../../../../components/nuevo/AsistenteShort';
 import { VOLUMEN_POR_DEFECTO } from '../../../../../../lib/musicaFondo';
 import { firmarUrlVideo, rutaDesdeUrlPublica } from '../../../../../../lib/storageUrl';
+
+/** Lee los modos de encuadre guardados para este proyecto (si existen). */
+function leerEncuadreGuardado(id: string): { split: boolean; fondo: boolean } {
+  try {
+    const v = JSON.parse(localStorage.getItem(`clipforge_encuadre_${id}`) || 'null');
+    return { split: !!v?.split, fondo: !!v?.fondo };
+  } catch {
+    return { split: false, fondo: false };
+  }
+}
 import { toast } from 'sonner';
 
 export interface ProcessedClipState {
@@ -129,8 +139,17 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
   const [asistenteClip, setAsistenteClip] = useState<ProcessedClipState | null>(null);
   const [mostrarTecnicos, setMostrarTecnicos] = useState(false);
   const [musica, setMusica] = useState<{ blob: Blob; volumen: number; nombre: string } | null>(null);
-  const [fondoDesenfocado, setFondoDesenfocado] = useState(false);
-  const [modoSplit, setModoSplit] = useState(false);
+  const [fondoDesenfocado, setFondoDesenfocado] = useState<boolean>(() => leerEncuadreGuardado(effectiveId).fondo);
+  const [modoSplit, setModoSplit] = useState<boolean>(() => leerEncuadreGuardado(effectiveId).split);
+
+  // Recuerda los modos de encuadre por proyecto para la próxima visita.
+  useEffect(() => {
+    try {
+      localStorage.setItem(`clipforge_encuadre_${effectiveId}`, JSON.stringify({ split: modoSplit, fondo: fondoDesenfocado }));
+    } catch {
+      /* sin localStorage no pasa nada */
+    }
+  }, [modoSplit, fondoDesenfocado, effectiveId]);
   const [clipsQueue, setClipsQueue] = useState<ProcessedClipState[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isProcessingAll, setIsProcessingAll] = useState(false);

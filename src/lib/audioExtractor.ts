@@ -76,7 +76,11 @@ async function extraerConFFmpeg(
   arrayBuffer: ArrayBuffer,
   onProgress?: (p: AudioExtractionProgress) => void
 ): Promise<{ audioBlob: Blob; duration: number }> {
-  const ffmpeg = await getLoadedFFmpeg();
+  const logs: string[] = [];
+  const ffmpeg = await getLoadedFFmpeg((m) => {
+    logs.push(m);
+    if (logs.length > 200) logs.shift();
+  });
   const inName = 'audio_in_video.mp4';
   const outName = 'audio_16k.wav';
 
@@ -89,14 +93,15 @@ async function extraerConFFmpeg(
     '-ac', '1',
     '-ar', '16000',
     '-c:a', 'pcm_s16le',
+    '-f', 'wav',
     outName,
   ]);
-  if (code !== 0) throw new Error(`FFmpeg devolvió código ${code} al extraer el audio`);
+  if (code !== 0) {
+    throw new Error(`FFmpeg código ${code}: ${logs.slice(-4).join(' | ')}`);
+  }
 
   const out = (await ffmpeg.readFile(outName)) as Uint8Array;
   const audioBlob = new Blob([out.buffer], { type: 'audio/wav' });
-
-  // Duración estimada del WAV: bytes de datos / (16000 Hz * 2 bytes por muestra).
   const duration = audioBlob.size > 44 ? (audioBlob.size - 44) / (16000 * 2) : 0;
 
   try {
@@ -112,23 +117,26 @@ export async function extract16kHzAudio(
   source: Blob | File | ArrayBuffer,
   onProgress?: (p: AudioExtractionProgress) => void
 ): Promise<{ audioBlob: Blob; duration: number }> {
-  let arrayBuffer: ArrayBuffer;
-  if (source instanceof ArrayBuffer) {
-    arrayBuffer = source;
-  } else {
-    arrayBuffer = await source.arrayBuffer();
-  }
+  // Cada vía lee su PROPIA copia de bytes: writeFile de FFmpeg transfiere el
+  // buffer al worker y lo desprende, así que reutilizarlo después daría
+  // 'detached ArrayBuffer'. Leer de nuevo del Blob siempre da bytes intactos.
+  const leerBytes = async (): Promise<ArrayBuffer> =>
+    source instanceof ArrayBuffer ? source.slice(0) : await source.arrayBuffer();
 
-  // 1) FFmpeg WASM: funciona con cualquier contenedor de vídeo.
+  let errorFFmpeg: unknown = null;
+
+  // 1) FFmpeg WASM: fiable con cualquier contenedor de vídeo.
   try {
     onProgress?.({ percent: 15, stage: 'Extrayendo audio con FFmpeg...' });
-    return await extraerConFFmpeg(arrayBuffer, onProgress);
+    return await extraerConFFmpeg(await leerBytes(), onProgress);
   } catch (ffErr) {
+    errorFFmpeg = ffErr;
     console.warn('Extracción con FFmpeg falló; se prueba Web Audio:', ffErr);
   }
 
-  // 2) Respaldo con Web Audio (solo si el navegador decodifica el contenedor).
+  // 2) Respaldo con Web Audio (bytes recién leídos, nunca desprendidos).
   try {
+    const arrayBuffer = await leerBytes();
     onProgress?.({ percent: 25, stage: 'Decodificando flujo de audio...' });
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     const tempAudioContext = new AudioContextClass();
@@ -156,7 +164,8 @@ export async function extract16kHzAudio(
     onProgress?.({ percent: 75, stage: 'Audio preparado para Whisper IA', detail: `Tamaño: ${(wavBlob.size / 1048576).toFixed(2)} MB` });
     return { audioBlob: wavBlob, duration };
   } catch (err: any) {
+    const mFF = errorFFmpeg instanceof Error ? errorFFmpeg.message : String(errorFFmpeg);
     console.error('Error during client audio extraction:', err);
-    throw new Error(`Fallo al extraer el audio: ${err.message || 'Formato de audio no decodificable'}`);
+    throw new Error(`Fallo al extraer el audio (FFmpeg: ${mFF} · WebAudio: ${err.message || 'no decodificable'})`);
   }
 }

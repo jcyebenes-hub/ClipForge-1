@@ -672,9 +672,6 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
                         {(uploadBytes / 1048576).toFixed(1)} MB de {(uploadTotalBytes / 1048576).toFixed(1)} MB confirmados por el servidor
                       </p>
                     )}
-                    <p className="text-[11px] text-slate-400">
-                      Destino: <code className="text-purple-300">supabase.storage('media')</code> → ruta <code className="text-slate-300">{`{user_id}/{proyecto_id}/original.mp4`}</code>
-                    </p>
                   </div>
                 )}
 

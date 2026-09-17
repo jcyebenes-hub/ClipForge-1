@@ -65,68 +65,96 @@ export interface AudioExtractionProgress {
 /**
  * Extrae la pista de audio de un archivo de vídeo o URL y la remuestrea a 16kHz mono.
  */
+import { getLoadedFFmpeg } from './videoCutter';
+
+/**
+ * Extrae el audio a 16kHz mono con FFmpeg WASM. Es fiable con cualquier
+ * contenedor (MP4, MOV, WebM...), algo que decodeAudioData del navegador NO
+ * garantiza para vídeo multiplexado. Devuelve el WAV y su duración.
+ */
+async function extraerConFFmpeg(
+  arrayBuffer: ArrayBuffer,
+  onProgress?: (p: AudioExtractionProgress) => void
+): Promise<{ audioBlob: Blob; duration: number }> {
+  const ffmpeg = await getLoadedFFmpeg();
+  const inName = 'audio_in_video.mp4';
+  const outName = 'audio_16k.wav';
+
+  await ffmpeg.writeFile(inName, new Uint8Array(arrayBuffer));
+  onProgress?.({ percent: 30, stage: 'Extrayendo pista de audio con FFmpeg...' });
+
+  const code = await ffmpeg.exec([
+    '-i', inName,
+    '-vn',
+    '-ac', '1',
+    '-ar', '16000',
+    '-c:a', 'pcm_s16le',
+    outName,
+  ]);
+  if (code !== 0) throw new Error(`FFmpeg devolvió código ${code} al extraer el audio`);
+
+  const out = (await ffmpeg.readFile(outName)) as Uint8Array;
+  const audioBlob = new Blob([out.buffer], { type: 'audio/wav' });
+
+  // Duración estimada del WAV: bytes de datos / (16000 Hz * 2 bytes por muestra).
+  const duration = audioBlob.size > 44 ? (audioBlob.size - 44) / (16000 * 2) : 0;
+
+  try {
+    await ffmpeg.deleteFile(inName);
+    await ffmpeg.deleteFile(outName);
+  } catch {}
+
+  onProgress?.({ percent: 60, stage: 'Audio preparado para Whisper IA', detail: `Duración: ${Math.round(duration)}s` });
+  return { audioBlob, duration };
+}
+
 export async function extract16kHzAudio(
   source: Blob | File | ArrayBuffer,
   onProgress?: (p: AudioExtractionProgress) => void
 ): Promise<{ audioBlob: Blob; duration: number }> {
+  let arrayBuffer: ArrayBuffer;
+  if (source instanceof ArrayBuffer) {
+    arrayBuffer = source;
+  } else {
+    arrayBuffer = await source.arrayBuffer();
+  }
+
+  // 1) FFmpeg WASM: funciona con cualquier contenedor de vídeo.
   try {
-    onProgress?.({ percent: 10, stage: 'Leyendo datos del vídeo...' });
+    onProgress?.({ percent: 15, stage: 'Extrayendo audio con FFmpeg...' });
+    return await extraerConFFmpeg(arrayBuffer, onProgress);
+  } catch (ffErr) {
+    console.warn('Extracción con FFmpeg falló; se prueba Web Audio:', ffErr);
+  }
 
-    let arrayBuffer: ArrayBuffer;
-    if (source instanceof ArrayBuffer) {
-      arrayBuffer = source;
-    } else {
-      arrayBuffer = await source.arrayBuffer();
-    }
-
+  // 2) Respaldo con Web Audio (solo si el navegador decodifica el contenedor).
+  try {
     onProgress?.({ percent: 25, stage: 'Decodificando flujo de audio...' });
-
-    // Decode original audio track
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     const tempAudioContext = new AudioContextClass();
-    
     let decodedBuffer: AudioBuffer;
     try {
       decodedBuffer = await tempAudioContext.decodeAudioData(arrayBuffer.slice(0));
     } finally {
-      if (tempAudioContext.state !== 'closed') {
-        tempAudioContext.close().catch(() => {});
-      }
+      if (tempAudioContext.state !== 'closed') tempAudioContext.close().catch(() => {});
     }
 
     const duration = decodedBuffer.duration;
-    onProgress?.({ 
-      percent: 45, 
-      stage: 'Remuestreando a 16kHz mono...', 
-      detail: `Duración: ${Math.round(duration)} segundos` 
-    });
+    onProgress?.({ percent: 45, stage: 'Remuestreando a 16kHz mono...', detail: `Duración: ${Math.round(duration)} segundos` });
 
-    // OfflineAudioContext at target 16,000 Hz sample rate
     const targetSampleRate = 16000;
     const targetLength = Math.ceil(duration * targetSampleRate);
     const offlineCtx = new OfflineAudioContext(1, targetLength, targetSampleRate);
-
     const sourceNode = offlineCtx.createBufferSource();
     sourceNode.buffer = decodedBuffer;
     sourceNode.connect(offlineCtx.destination);
     sourceNode.start(0);
-
     const resampledBuffer = await offlineCtx.startRendering();
 
     onProgress?.({ percent: 65, stage: 'Generando archivo de audio optimizado...' });
-
     const wavBlob = audioBufferToWavBlob(resampledBuffer);
-
-    onProgress?.({ 
-      percent: 75, 
-      stage: 'Audio preparado para Whisper IA',
-      detail: `Tamaño: ${(wavBlob.size / (1024 * 1024)).toFixed(2)} MB`
-    });
-
-    return {
-      audioBlob: wavBlob,
-      duration,
-    };
+    onProgress?.({ percent: 75, stage: 'Audio preparado para Whisper IA', detail: `Tamaño: ${(wavBlob.size / 1048576).toFixed(2)} MB` });
+    return { audioBlob: wavBlob, duration };
   } catch (err: any) {
     console.error('Error during client audio extraction:', err);
     throw new Error(`Fallo al extraer el audio: ${err.message || 'Formato de audio no decodificable'}`);

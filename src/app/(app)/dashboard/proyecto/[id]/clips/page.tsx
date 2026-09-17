@@ -1884,6 +1884,9 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                               </div>
                             </div>
 
+                            {/* Recordatorio de apoyo en el momento de valor (descargar/compartir) */}
+                            <ApoyarClipForge compacto className="mb-3" />
+
                             {/* Action CTA & Editor Navigation */}
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2.5 border-t border-purple-900/20">
                               <div className="text-xs text-slate-400">

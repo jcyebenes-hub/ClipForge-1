@@ -15,13 +15,33 @@ import { trackEvent } from '../../lib/analytics';
  *
  *  2. CAPTURA DE CORREO para la lista de espera del plan Pro. Se guarda con
  *     trackEvent('correo_capturado'), que escribe en la tabla `eventos`.
- *     IMPORTANTE: verificado contra la base real, la política de inserción
- *     pública de esa tabla NO está aplicada, así que el insert se deniega con
- *     42501 y trackEvent lo ignora en silencio. El correo queda igualmente
- *     guardado en localStorage del usuario. Para que llegue a Supabase hay que
- *     ejecutar una vez la política `eventos_insert_publica`
- *     (supabase/migrations/20260902_add_eventos_table.sql).
+ *     El correo se registra con trackEvent('correo_capturado'), que escribe en la
+ *     tabla `eventos` (su política de inserción pública sí está aplicada,
+ *     verificado contra la base real). Además queda en localStorage como respaldo.
  */
+
+
+/**
+ * Marca de Ko-fi dibujada como SVG inline (taza con corazón). Se usa inline para
+ * que cargue sin red y se vea nítida a cualquier tamaño.
+ */
+function LogoKofi({ className = 'h-5 w-5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 36" className={className} role="img" aria-label="Ko-fi" fill="none">
+      <path
+        d="M4 5h26a3 3 0 0 1 3 3v13a11 11 0 0 1-11 11H15A11 11 0 0 1 4 21Z"
+        fill="#ffffff"
+        stroke="#141414"
+        strokeWidth="3"
+      />
+      <path d="M33 11h3a6 6 0 0 1 0 12h-3" stroke="#141414" strokeWidth="3" fill="none" />
+      <path
+        d="M17.5 13c-2.2-3-7-1.8-7 2c0 3 4.2 5.2 7 8c2.8-2.8 7-5 7-8c0-3.8-4.8-5-7-2Z"
+        fill="#FF5E5B"
+      />
+    </svg>
+  );
+}
 
 const CLAVE_LS = 'clipforge_lista_espera_email';
 
@@ -30,10 +50,12 @@ const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 interface Props {
   /** Texto de cabecera. Útil para adaptar el mensaje al contexto. */
   titulo?: string;
+  /** Variante de una línea para incrustar junto a Descargar/Compartir. */
+  compacto?: boolean;
   className?: string;
 }
 
-export function ApoyarClipForge({ titulo, className = '' }: Props) {
+export function ApoyarClipForge({ titulo, compacto = false, className = '' }: Props) {
   const kofiUrl = ((import.meta.env.VITE_KOFI_URL as string | undefined) || '').trim();
   const [email, setEmail] = useState('');
   const [estado, setEstado] = useState<'idle' | 'enviado' | 'error'>('idle');
@@ -69,6 +91,29 @@ export function ApoyarClipForge({ titulo, className = '' }: Props) {
     await trackEvent('correo_capturado', { email: limpio });
   };
 
+  if (compacto) {
+    if (!kofiUrl) return null;
+    return (
+      <div
+        className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border border-purple-900/40 bg-[#0d0d1b] px-3 py-2 ${className}`}
+      >
+        <span className="text-[11px] text-slate-400">
+          ClipForge es gratis y sin anuncios. Si te salva tiempo, invítanos a un café.
+        </span>
+        <a
+          href={kofiUrl}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          onClick={() => void trackEvent('click_donacion', { destino: 'kofi' })}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[#FF5E5B] px-2.5 py-1 text-[11px] font-bold text-white transition hover:brightness-110"
+        >
+          <LogoKofi className="h-4 w-4" />
+          Apóyanos en Ko-fi
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`rounded-2xl border border-purple-900/40 bg-[#090912] p-4 flex flex-col gap-4 ${className}`}
@@ -93,9 +138,10 @@ export function ApoyarClipForge({ titulo, className = '' }: Props) {
           target="_blank"
           rel="noopener noreferrer nofollow"
           onClick={() => void trackEvent('click_donacion', { destino: 'kofi' })}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-pink-500"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF5E5B] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
         >
-          ☕ Invítanos a un café en Ko-fi
+          <LogoKofi className="h-5 w-5" />
+          Invítanos a un café en Ko-fi
         </a>
       ) : (
         <p className="text-[11px] text-slate-500">

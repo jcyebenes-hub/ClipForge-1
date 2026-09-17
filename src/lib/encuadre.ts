@@ -78,6 +78,8 @@ export async function detectarRostros(
   videoWidth: number;
   videoHeight: number;
   duration: number;
+  framesAnalizados: number;
+  maxCarasPorFrame: number;
 }> {
   const video = document.createElement('video');
   video.muted = true;
@@ -138,6 +140,8 @@ export async function detectarRostros(
 
   let currentT = inicioSeg;
   let sampleIndex = 0;
+  let framesAnalizados = 0;
+  let maxCarasPorFrame = 0;
 
   while (currentT <= finSeg) {
     // Check performance timeout constraint (if detection exceeds 3 min, speed up step)
@@ -159,10 +163,12 @@ export async function detectarRostros(
     await seekPromise;
 
     if (ctx && detector) {
+      framesAnalizados++;
       ctx.drawImage(video, 0, 0, origWidth, origHeight);
       try {
         const detections = detector.detect(canvas);
         if (detections && detections.detections && detections.detections.length > 0) {
+          maxCarasPorFrame = Math.max(maxCarasPorFrame, detections.detections.length);
           // Pick the largest (main) face bounding box
           let mainFace = detections.detections[0];
           let maxArea = (mainFace.boundingBox?.width || 0) * (mainFace.boundingBox?.height || 0);
@@ -222,6 +228,8 @@ export async function detectarRostros(
     videoWidth: origWidth,
     videoHeight: origHeight,
     duration: totalDuration,
+    framesAnalizados,
+    maxCarasPorFrame,
   };
 }
 
@@ -588,6 +596,44 @@ export interface GenerarShortOptions {
  * rellena el lienzo vertical, y encima se superpone el vídeo nítido ajustado al
  * ancho. Es puro (devuelve el filter_complex) para poder probarlo sin FFmpeg.
  */
+export interface StatsEncuadre {
+  /** Fracción de fotogramas analizados en los que apareció al menos un rostro (0..1). */
+  ratioCaras: number;
+  /** Máximo de rostros vistos a la vez en un fotograma. */
+  maxCaras: number;
+  /** Movimiento medio normalizado respecto al ancho del vídeo (0..~1). */
+  movimiento: number;
+}
+
+export interface SugerenciaEncuadre {
+  enfoque: TipoEnfoque;
+  split: boolean;
+  fondo: boolean;
+  razon: string;
+}
+
+/**
+ * Heurística explicable para sugerir el encuadre. Pura y probable: con los datos
+ * de detección decide entre rostro, deportes, centrado y los modos Split/fondo.
+ */
+export function sugerirEncuadre(stats: StatsEncuadre): SugerenciaEncuadre {
+  const { ratioCaras, maxCaras, movimiento } = stats;
+
+  if (maxCaras >= 2 && ratioCaras >= 0.4) {
+    return { enfoque: 'centrado', split: true, fondo: false, razon: `Dos o más rostros a la vez en el ${Math.round(ratioCaras * 100)}% de los fotogramas: layout Split de dos personas.` };
+  }
+  if (ratioCaras >= 0.5) {
+    return { enfoque: 'rostro', split: false, fondo: false, razon: `Rostro presente en el ${Math.round(ratioCaras * 100)}% de los fotogramas: seguimiento facial.` };
+  }
+  if (ratioCaras < 0.15 && movimiento >= 0.06) {
+    return { enfoque: 'deportes', split: false, fondo: false, razon: 'Sin rostros claros pero con mucho movimiento: seguimiento de acción.' };
+  }
+  if (ratioCaras < 0.15 && movimiento < 0.02) {
+    return { enfoque: 'centrado', split: false, fondo: true, razon: 'Plano estático sin rostros (pantalla/escena fija): fondo desenfocado.' };
+  }
+  return { enfoque: 'centrado', split: false, fondo: false, razon: 'Sin señal clara de rostros ni de movimiento: encuadre centrado seguro.' };
+}
+
 export function filtroVerticalConFondo(targetW: number, targetH: number, radio = 0): string {
   const r = radio > 0 ? Math.round(radio) : Math.max(8, Math.round(targetW / 24));
   return [

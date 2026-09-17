@@ -43,7 +43,7 @@ import { ExportTikTokModal } from '../../../../../../components/publicar/ExportT
 import { supabase } from '../../../../../../lib/supabase/client';
 import type { Proyecto, Clip } from '../../../../../../lib/supabase/types';
 import { cutVideoSegment, CutProgressCallback } from '../../../../../../lib/videoCutter';
-import { generarShortVertical, VerticalCropProgress, TipoEnfoque } from '../../../../../../lib/encuadre';
+import { generarShortVertical, VerticalCropProgress, TipoEnfoque, detectarRostros, detectarMovimiento, sugerirEncuadre } from '../../../../../../lib/encuadre';
 import {
   SubtitleStylePreset,
   SUBTITLE_STYLES,
@@ -658,6 +658,46 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
   /**
    * Updates focus tracking mode for a clip ('rostro' | 'deportes' | 'centrado')
    */
+  /**
+   * Analiza el clip (rostros y, si no hay, movimiento) y aplica el encuadre
+   * sugerido por la heurística, con una razón legible.
+   */
+  const handleSugerirEncuadre = async (clip: ProcessedClipState) => {
+    try {
+      toast.info('Analizando el clip para sugerir el encuadre...');
+      const videoBlob = await getOriginalVideoBlob();
+      const fin = clip.fin_seg || clip.inicio_seg + clip.duracion_seg;
+
+      const caras = await detectarRostros(videoBlob, clip.inicio_seg, fin);
+      const ratioCaras = caras.framesAnalizados > 0 ? caras.samples.length / caras.framesAnalizados : 0;
+
+      let movimiento = 0;
+      if (ratioCaras < 0.15) {
+        const mov = await detectarMovimiento(videoBlob, clip.inicio_seg, fin);
+        const pts = mov.samples;
+        let acc = 0;
+        let n = 0;
+        for (let i = 1; i < pts.length; i++) {
+          acc += Math.hypot(pts[i].centerX - pts[i - 1].centerX, pts[i].centerY - pts[i - 1].centerY);
+          n++;
+        }
+        movimiento = n > 0 ? acc / n / (mov.videoWidth || 1920) : 0;
+      }
+
+      const sug = sugerirEncuadre({ ratioCaras, maxCaras: caras.maxCarasPorFrame, movimiento });
+      handleUpdateEnfoque(clip.id, sug.enfoque);
+      setModoSplit(sug.split);
+      setFondoDesenfocado(sug.fondo);
+      toast.success(
+        `Encuadre sugerido: ${sug.enfoque}${sug.split ? ' + Split' : ''}${sug.fondo ? ' + fondo desenfocado' : ''}`,
+        { description: sug.razon }
+      );
+    } catch (err) {
+      console.warn('No se pudo sugerir el encuadre:', err);
+      toast.error('No se pudo analizar el clip para sugerir el encuadre.');
+    }
+  };
+
   const handleUpdateEnfoque = (clipId: string, enfoque: TipoEnfoque) => {
     setClipsQueue(prev => prev.map(c => c.id === clipId ? { ...c, enfoque } : c));
     const labels: Record<TipoEnfoque, string> = {
@@ -1577,6 +1617,15 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                                 <Sliders className="w-3 h-3 text-cyan-400" />
                                 Enfoque:
                               </span>
+                              <button
+                                type="button"
+                                onClick={() => void handleSugerirEncuadre(clip)}
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 text-cyan-300 hover:bg-cyan-950/40 transition-all cursor-pointer"
+                                title="Analiza rostros y movimiento y elige el encuadre por ti"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                <span>Auto</span>
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleUpdateEnfoque(clip.id, 'rostro')}

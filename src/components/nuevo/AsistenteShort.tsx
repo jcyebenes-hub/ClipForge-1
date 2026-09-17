@@ -35,6 +35,10 @@ const ESTILOS: { id: SubtitleStylePreset; nombre: string; desc: string }[] = [
   { id: 'moderno', nombre: 'Moderno', desc: 'Blanco con relleno que va palabra a palabra. El más usado.' },
   { id: 'neon', nombre: 'Neón', desc: 'Colores vivos con borde marcado. Llama más la atención.' },
   { id: 'minimal', nombre: 'Minimal', desc: 'Discreto y limpio. No tapa el vídeo.' },
+  { id: 'podcast', nombre: 'Podcast', desc: 'Contorno grueso. Para entrevistas y dos interlocutores.' },
+  { id: 'genz', nombre: 'Gen Z', desc: 'Verde lima y mayúsculas. Ritmo rápido.' },
+  { id: 'dramatico', nombre: 'Dramático', desc: 'Palabra clave en rojo cine, sombra profunda.' },
+  { id: 'humor', nombre: 'Humor', desc: 'Amarillo grande con borde morado.' },
 ];
 
 export function AsistenteShort({ clip, onCerrar, onGenerar }: Props) {

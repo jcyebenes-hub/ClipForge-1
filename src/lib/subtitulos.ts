@@ -1,7 +1,14 @@
 import { getLoadedFFmpeg, parseFFmpegTime } from './videoCutter';
 import { fetchFile } from '@ffmpeg/util';
 
-export type SubtitleStylePreset = 'moderno' | 'neon' | 'minimal';
+export type SubtitleStylePreset =
+  | 'moderno'
+  | 'neon'
+  | 'minimal'
+  | 'podcast'
+  | 'genz'
+  | 'dramatico'
+  | 'humor';
 
 export interface SubtitleWord {
   word: string;
@@ -101,6 +108,85 @@ export const SUBTITLE_STYLES: Record<SubtitleStylePreset, SubtitleStyleConfig> =
     assPrimaryColor: '&H00FCFAF8',
     assAccentColor: '&H00F8BD38',
     assOutlineColor: '&H002A170F',
+  },
+  // Los cuatro estilos siguientes amplían la oferta inspirándose en lo que
+  // ofrecen los proyectos de referencia (OpenShorts, AutoShorts). Son solo
+  // datos: no cambian la tubería de render.
+  podcast: {
+    name: 'podcast',
+    label: 'Podcast',
+    description: 'Blanco grueso con contorno negro muy marcado. Pensado para entrevistas y dos interlocutores.',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: 52,
+    primaryColor: '#FFFFFF',
+    accentColor: '#FF8A00', // Naranja
+    outlineColor: '#000000',
+    outlineWidth: 8,
+    shadowColor: 'rgba(0,0,0,0.9)',
+    shadowBlur: 6,
+    shadowOffsetY: 3,
+    uppercaseKeyWords: true,
+    positionY: 1550,
+    assPrimaryColor: '&H00FFFFFF',
+    assAccentColor: '&H00008AFF', // #FF8A00 en BGR
+    assOutlineColor: '&H00000000',
+  },
+  genz: {
+    name: 'genz',
+    label: 'Gen Z',
+    description: 'Verde lima eléctrico con mayúsculas. Para contenido rápido y muy recortado.',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: 50,
+    primaryColor: '#FFFFFF',
+    accentColor: '#A3FF12', // Lima
+    outlineColor: '#000000',
+    outlineWidth: 6,
+    shadowColor: 'rgba(0,0,0,0.85)',
+    shadowBlur: 10,
+    shadowOffsetY: 4,
+    uppercaseKeyWords: true,
+    positionY: 1540,
+    assPrimaryColor: '&H00FFFFFF',
+    assAccentColor: '&H0012FFA3', // #A3FF12 en BGR
+    assOutlineColor: '&H00000000',
+  },
+  dramatico: {
+    name: 'dramatico',
+    label: 'Dramático',
+    description: 'Blanco roto con palabra clave en rojo cine y sombra profunda.',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: 46,
+    primaryColor: '#F5F5F5',
+    accentColor: '#FF3B30', // Rojo
+    outlineColor: '#0B0B0B',
+    outlineWidth: 5,
+    shadowColor: 'rgba(0,0,0,0.95)',
+    shadowBlur: 16,
+    shadowOffsetY: 6,
+    uppercaseKeyWords: false,
+    positionY: 1560,
+    assPrimaryColor: '&H00F5F5F5',
+    assAccentColor: '&H00303BFF', // #FF3B30 en BGR
+    assOutlineColor: '&H000B0B0B',
+  },
+  humor: {
+    name: 'humor',
+    label: 'Humor',
+    description: 'Amarillo grande con contorno morado. Tono desenfadado, clips de comedia.',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: 54,
+    primaryColor: '#FFFFFF',
+    accentColor: '#FFD600', // Amarillo
+    outlineColor: '#7C3AED', // Morado
+    outlineWidth: 7,
+    shadowColor: 'rgba(124,58,237,0.55)',
+    shadowBlur: 12,
+    shadowOffsetY: 4,
+    uppercaseKeyWords: true,
+    positionY: 1545,
+    assPrimaryColor: '&H00FFFFFF',
+    assAccentColor: '&H0000D6FF', // #FFD600 en BGR
+    assOutlineColor: '&H00ED3A7C', // #7C3AED en BGR
   },
 };
 
@@ -281,13 +367,28 @@ Style: Moderno,Arial,${48 + fontSizeMod},&H00FFFFFF,&H0000E6FF,&H00000000,&H8000
 Style: Neon,Arial,${50 + fontSizeMod},&H00FFFFFF,&H00FFFF00,&H00FFE500,&H90000000,-1,0,0,0,100,100,2,0,1,7,4,2,60,60,${marginV},1
 Style: Minimal,Arial,${38 + fontSizeMod},&H00FCFAF8,&H00F8BD38,&H002A170F,&H60000000,0,0,0,0,100,100,0,0,1,3,1,2,80,80,${Math.round(marginV * 0.9)},1
 Style: ViralHook,Arial,${54 + fontSizeMod},&H0000FFFF,&H0000FFFF,&H00000000,&HA0000000,-1,0,0,0,100,100,2,0,1,8,5,2,40,40,${hookMarginV},1
+Style: Podcast,Arial,${SUBTITLE_STYLES.podcast.fontSize + fontSizeMod},&H00FFFFFF,&H00008AFF,&H00000000,&H80000000,-1,0,0,0,100,100,1,0,1,8,3,2,60,60,${marginV},1
+Style: GenZ,Arial,${SUBTITLE_STYLES.genz.fontSize + fontSizeMod},&H00FFFFFF,&H0012FFA3,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,6,4,2,60,60,${marginV},1
+Style: Dramatico,Arial,${SUBTITLE_STYLES.dramatico.fontSize + fontSizeMod},&H00F5F5F5,&H00303BFF,&H000B0B0B,&H90000000,0,0,0,0,100,100,0,0,1,5,6,2,60,60,${marginV},1
+Style: Humor,Arial,${SUBTITLE_STYLES.humor.fontSize + fontSizeMod},&H00FFFFFF,&H0000D6FF,&H00ED3A7C,&H80000000,-1,0,0,0,100,100,3,0,1,7,4,2,60,60,${marginV},1
 Style: Watermark,Arial,28,&H80FFFFFF,&H80FFFFFF,&H80000000,&H80000000,-1,0,0,0,100,100,1,0,1,2,1,3,24,24,24,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
-  const styleName = stylePreset === 'neon' ? 'Neon' : stylePreset === 'minimal' ? 'Minimal' : 'Moderno';
+  // Mapa exhaustivo: al ser Record<SubtitleStylePreset, string>, el compilador
+  // avisa si se añade un preset y falta su nombre de estilo ASS.
+  const NOMBRES_ESTILO_ASS: Record<SubtitleStylePreset, string> = {
+    moderno: 'Moderno',
+    neon: 'Neon',
+    minimal: 'Minimal',
+    podcast: 'Podcast',
+    genz: 'GenZ',
+    dramatico: 'Dramatico',
+    humor: 'Humor',
+  };
+  const styleName = NOMBRES_ESTILO_ASS[stylePreset] ?? 'Moderno';
   const events: string[] = [];
 
   // If watermark is requested (Free Plan), add subtle bottom-right watermark event

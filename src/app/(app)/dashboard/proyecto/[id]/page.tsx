@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { KoFiTopButton } from '../../../../../components/nuevo/KoFiTopButton';
 import { 
   ArrowLeft, 
   Clock, 
@@ -1620,7 +1619,6 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            <KoFiTopButton />
             {transcriptData && (
               <>
                 <button

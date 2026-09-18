@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { KoFiTopButton } from '../../../../components/nuevo/KoFiTopButton';
 import { 
   BarChart, 
   Bar, 
@@ -84,7 +83,6 @@ export const EstadisticasPage: React.FC<EstadisticasPageProps> = ({ onNavigate }
         </div>
 
         <div className="flex items-center gap-2">
-          <KoFiTopButton />
           <button
             id="btn-refresh-stats"
             onClick={loadMetrics}

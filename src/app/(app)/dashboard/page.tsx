@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { KoFiTopButton } from '../../../components/nuevo/KoFiTopButton';
 import { 
   Plus, 
   Sparkles, 
@@ -152,7 +151,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
           {/* Big Action Button */}
           <div className="flex items-center gap-3 shrink-0">
-            <KoFiTopButton />
             <button
               onClick={() => onNavigate?.('/dashboard/publicar')}
               className="inline-flex items-center gap-2 px-4 py-3.5 rounded-2xl bg-[#141426] hover:bg-[#1f1f3a] border border-purple-900/40 text-slate-200 text-xs font-bold transition-all shadow-md cursor-pointer hover:border-purple-600/50"

@@ -19,7 +19,6 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
-import { KoFiTopButton } from '../../../../components/nuevo/KoFiTopButton';
 import { supabase } from '../../../../lib/supabase/client';
 import type { Proyecto } from '../../../../lib/supabase/types';
 import type { YoutubeInfoResponse } from '../../../api/youtube/info/route';
@@ -443,7 +442,6 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
               </p>
             </div>
           </div>
-          <KoFiTopButton />
         </div>
 
         {/* Tab Selection Switches */}

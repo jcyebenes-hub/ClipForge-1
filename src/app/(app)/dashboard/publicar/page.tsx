@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { KoFiTopButton } from '../../../../components/nuevo/KoFiTopButton';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -250,7 +249,6 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          <KoFiTopButton />
           <button
             onClick={fetchPublicaciones}
             className="p-2.5 rounded-xl bg-[#141426] hover:bg-[#1f1f3a] border border-purple-900/40 text-slate-300 transition-colors cursor-pointer"

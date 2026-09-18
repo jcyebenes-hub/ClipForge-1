@@ -19,6 +19,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useYouTube , YOUTUBE_UPLOAD_HABILITADO } from '../../context/YouTubeAuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { KoFiTopButton } from '../nuevo/KoFiTopButton';
 import { ComoSeProcesaModal } from '../common/ComoSeProcesaModal';
 
 interface AppNavbarProps {
@@ -116,6 +117,9 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
 
             {/* Right: Language Switcher + YouTube + Create CTA + User Menu */}
             <div className="flex items-center gap-3">
+              {/* Ko-fi (logo oficial) junto al selector de idioma */}
+              <KoFiTopButton />
+
               {/* Language Switcher */}
               <div className="inline-flex items-center p-1 rounded-xl bg-[#141424] border border-purple-900/40">
                 <button

@@ -241,7 +241,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                           </div>
                           <span className="text-[10px] text-slate-500 hover:text-red-300">{t('desconectar_youtube')}</span>
                         </button>
-                      ) : (
+                      ) : YOUTUBE_UPLOAD_HABILITADO ? (
                         <button
                           onClick={() => {
                             setDropdownOpen(false);
@@ -252,7 +252,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                           <Youtube className="w-3.5 h-3.5" />
                           <span>{t('conectar_youtube')}</span>
                         </button>
-                      )}
+                      ) : null}
                     </div>
 
                     <div className="pt-1 border-t border-slate-800/80">

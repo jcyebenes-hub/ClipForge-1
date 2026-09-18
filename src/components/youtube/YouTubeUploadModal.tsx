@@ -260,7 +260,7 @@ export const YouTubeUploadModal: React.FC<YouTubeUploadModalProps> = ({
                   </div>
                 </div>
 
-                {!isConnected ? (
+                {!YOUTUBE_UPLOAD_HABILITADO ? null : !isConnected ? (
                   <button
                     onClick={connectYouTube}
                     className="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-md shadow-red-950 transition-all shrink-0 cursor-pointer"

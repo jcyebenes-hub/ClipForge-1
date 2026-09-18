@@ -964,9 +964,16 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
           audioBlobToSend = extraction.audioBlob;
           calculatedDuration = Math.round(extraction.duration);
         } catch (extractErr) {
-          // Respaldo robusto: si el navegador no puede extraer el audio (códec no
-          // soportado por FFmpeg-WASM), enviamos el VÍDEO tal cual a Whisper; Groq
-          // extrae el audio en su servidor con FFmpeg completo.
+          const msg = extractErr instanceof Error ? extractErr.message : String(extractErr);
+          // Sin pista de audio: mensaje claro, no tiene sentido enviar a Whisper.
+          if (/no tiene pista de audio/i.test(msg)) {
+            throw new Error('Este vídeo no tiene pista de audio, así que no hay nada que transcribir. Revisa el archivo o usa un enlace de YouTube.');
+          }
+          // Respaldo: enviar el vídeo a Whisper, pero solo si no supera el límite de Groq.
+          const MAX_MB = 25;
+          if (videoBlob.size > MAX_MB * 1024 * 1024) {
+            throw new Error(`El vídeo pesa ${(videoBlob.size / 1048576).toFixed(1)} MB y supera el límite de ${MAX_MB} MB para transcribirlo directamente. Prueba con un vídeo más corto o pega un enlace de YouTube.`);
+          }
           console.warn('Extracción de audio falló; se envía el vídeo original a Whisper:', extractErr);
           setProgressStage('Enviando vídeo a Whisper (extracción local no disponible)...');
           audioBlobToSend = videoBlob;

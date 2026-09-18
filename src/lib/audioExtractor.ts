@@ -146,6 +146,10 @@ async function extraerConFFmpeg(
   }
 
   try { await ffmpeg.deleteFile(inName); } catch {}
+  const logText = logs.join(' ');
+  if (/matches no streams|does not contain any stream|Output file #0 does not contain/i.test(logText)) {
+    throw new Error('El vídeo no tiene pista de audio.');
+  }
   throw new Error(`FFmpeg no pudo extraer el audio: ${logs.slice(-5).join(' | ')}`);
 }
 
@@ -167,6 +171,10 @@ export async function extract16kHzAudio(
     return await extraerConFFmpeg(await leerBytes(), onProgress);
   } catch (ffErr) {
     errorFFmpeg = ffErr;
+    const mFF2 = ffErr instanceof Error ? ffErr.message : String(ffErr);
+    if (/no tiene pista de audio/i.test(mFF2)) {
+      throw new Error('El vídeo no tiene pista de audio, así que no hay nada que transcribir.');
+    }
     console.warn('Extracción con FFmpeg falló; se prueba Web Audio:', ffErr);
   }
 

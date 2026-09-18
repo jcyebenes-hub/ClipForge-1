@@ -17,7 +17,7 @@ import {
   Globe
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useYouTube } from '../../context/YouTubeAuthContext';
+import { useYouTube , YOUTUBE_UPLOAD_HABILITADO } from '../../context/YouTubeAuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { ComoSeProcesaModal } from '../common/ComoSeProcesaModal';
 
@@ -152,7 +152,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                   <span className="max-w-[110px] truncate text-[11px] text-red-200 font-bold">{channel?.channelTitle || 'YouTube'}</span>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                 </div>
-              ) : (
+              ) : YOUTUBE_UPLOAD_HABILITADO ? (
                 <button
                   id="navbar-connect-youtube-btn"
                   onClick={connectYouTube}
@@ -161,7 +161,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                   <Youtube className="w-3.5 h-3.5 text-red-500 fill-red-500" />
                   <span>{t('conectar_youtube')}</span>
                 </button>
-              )}
+              ) : null}
 
               {/* Create Clips button */}
               <button

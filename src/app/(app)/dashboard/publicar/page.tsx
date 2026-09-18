@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../../../context/AuthContext';
-import { useYouTube } from '../../../../context/YouTubeAuthContext';
+import { useYouTube , YOUTUBE_UPLOAD_HABILITADO } from '../../../../context/YouTubeAuthContext';
 import { YouTubeUploadModal } from '../../../../components/youtube/YouTubeUploadModal';
 import { ExportTikTokModal } from '../../../../components/publicar/ExportTikTokModal';
 import { supabase } from '../../../../lib/supabase/client';
@@ -289,14 +289,14 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
             <span className="px-2.5 py-1 rounded-lg bg-emerald-950/80 text-emerald-400 border border-emerald-800/40 text-[10px] font-bold">
               API Lista
             </span>
-          ) : (
+          ) : YOUTUBE_UPLOAD_HABILITADO ? (
             <button
               onClick={connectYouTube}
               className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors cursor-pointer"
             >
               Conectar
             </button>
-          )}
+          ) : null}
         </div>
 
         {/* TikTok */}

@@ -20,7 +20,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
-import { useYouTube } from '../../../context/YouTubeAuthContext';
+import { useYouTube , YOUTUBE_UPLOAD_HABILITADO } from '../../../context/YouTubeAuthContext';
 import { TarjetaProyecto } from '../../../components/proyecto/TarjetaProyecto';
 import { supabase } from '../../../lib/supabase/client';
 import type { Proyecto } from '../../../lib/supabase/types';
@@ -233,7 +233,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                   Desconectar
                 </button>
               </>
-            ) : (
+            ) : YOUTUBE_UPLOAD_HABILITADO ? (
               <button
                 id="dashboard-connect-yt-btn"
                 onClick={connectYouTube}
@@ -242,7 +242,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                 <Youtube className="w-4 h-4 fill-white" />
                 <span>Conectar YouTube</span>
               </button>
-            )}
+            ) : null}
           </div>
         </div>
 

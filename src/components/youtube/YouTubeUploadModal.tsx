@@ -16,7 +16,7 @@ import {
   Hash,
   Share2,
 } from 'lucide-react';
-import { useYouTube } from '../../context/YouTubeAuthContext';
+import { useYouTube, YOUTUBE_UPLOAD_HABILITADO } from '../../context/YouTubeAuthContext';
 import type { ResumableUploadResult } from '../../lib/youtubeUploader';
 import { toast } from 'sonner';
 import { ApoyarClipForge } from '../nuevo/ApoyarClipForge';
@@ -120,6 +120,16 @@ export const YouTubeUploadModal: React.FC<YouTubeUploadModalProps> = ({
       toast.error(`Error al subir a YouTube: ${err.message || err}`);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleCopyMetadata = async () => {
+    const texto = `${title}\n\n${description}\n\n${hashtags.join(' ')}`;
+    try {
+      await navigator.clipboard.writeText(texto);
+      toast.success('Título, descripción y hashtags copiados. Pégalos en YouTube Studio al subir tu Short.');
+    } catch {
+      toast.error('No se pudo copiar al portapapeles');
     }
   };
 
@@ -453,24 +463,34 @@ export const YouTubeUploadModal: React.FC<YouTubeUploadModalProps> = ({
               Cancelar
             </button>
 
-            <button
-              id="confirm-youtube-upload-btn"
-              onClick={handleStartUpload}
-              disabled={isUploading || !title.trim()}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-black shadow-lg shadow-red-950 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Publicando Short...</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4 stroke-[2.5]" />
-                  <span>Subir Short a YouTube</span>
-                </>
-              )}
-            </button>
+            {YOUTUBE_UPLOAD_HABILITADO ? (
+              <button
+                id="confirm-youtube-upload-btn"
+                onClick={handleStartUpload}
+                disabled={isUploading || !title.trim()}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-black shadow-lg shadow-red-950 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Publicando Short...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 stroke-[2.5]" />
+                    <span>Subir Short a YouTube</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={handleCopyMetadata}
+                title="Copia título, descripción y hashtags para pegarlos en YouTube Studio"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-black shadow-lg shadow-purple-950 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              >
+                <span>📋 Copiar para YouTube Studio</span>
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -6,6 +6,14 @@ import type { YouTubeChannelInfo, YouTubeOAuthTokens } from '../lib/youtubeOauth
 import type { ResumableUploadResult } from '../lib/youtubeUploader';
 import { toast } from 'sonner';
 
+/**
+ * Interruptor de la subida directa a YouTube. En false, la conexión OAuth queda
+ * durmiente (código intacto) y la app guía al usuario a descargar el Short y
+ * subirlo desde YouTube Studio. Ponlo en true solo si el proyecto pasa la
+ * auditoría de la API de YouTube.
+ */
+export const YOUTUBE_UPLOAD_HABILITADO = false;
+
 interface YouTubeAuthContextType {
   isConnected: boolean;
   channel: YouTubeChannelInfo | null;
@@ -139,6 +147,10 @@ export const YouTubeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Initiate popup OAuth flow
   const connectYouTube = async () => {
+    if (!YOUTUBE_UPLOAD_HABILITADO) {
+      toast.info('La subida directa a YouTube no está disponible. Descarga tu Short y súbelo desde YouTube Studio (te damos título, descripción y hashtags listos para pegar).');
+      return;
+    }
     try {
       const stateParam = user ? `uid:${user.id}` : 'uid:demo-user';
       const authEndpoint = `/api/youtube/auth?format=json&state=${encodeURIComponent(stateParam)}`;

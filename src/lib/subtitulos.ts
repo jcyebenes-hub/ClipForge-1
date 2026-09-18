@@ -674,7 +674,9 @@ async function quemarSubtitulosCanvas(opts: {
     onProgress?.({ percent: pct, stage: 'quemando_subtitulos', detail: `Dibujando subtítulos (${video.currentTime.toFixed(1)}s / ${dur.toFixed(1)}s)...` });
   };
 
-  await new Promise<void>((res) => { video.onseeked = () => res(); video.currentTime = 0; });
+  if (video.currentTime !== 0) {
+    await new Promise<void>((res) => { video.onseeked = () => res(); video.currentTime = 0; });
+  }
   rec.start(200);
   loop();
   try {
@@ -697,6 +699,7 @@ export async function quemarSubtitulosVideo(options: BurnSubtitlesOptions): Prom
   previewUrl: string;
   assContent: string;
   groupsCount: number;
+  metodo: string;
 }> {
   const {
     clipId,
@@ -757,6 +760,7 @@ export async function quemarSubtitulosVideo(options: BurnSubtitlesOptions): Prom
           previewUrl: URL.createObjectURL(canvasBlob),
           assContent,
           groupsCount: groups.length,
+          metodo: 'canvas',
         };
       }
     } catch (canvasErr) {
@@ -916,5 +920,6 @@ export async function quemarSubtitulosVideo(options: BurnSubtitlesOptions): Prom
     previewUrl,
     assContent,
     groupsCount: groups.length,
+    metodo: renderSucceeded ? 'ffmpeg' : 'sin-subtitulos',
   };
 }

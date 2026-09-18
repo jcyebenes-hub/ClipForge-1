@@ -1153,7 +1153,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
         },
       });
 
-      addLog(`Subtítulos quemados exitosamente en "${clip.titulo_hook}". Frases generadas: ${burnRes.groupsCount}. Tamaño: ${(burnRes.blob.size / (1024 * 1024)).toFixed(2)} MB.`);
+      addLog(`Short listo: "${clip.titulo_hook}". Frases: ${burnRes.groupsCount} · Método: ${burnRes.metodo} · Tamaño: ${(burnRes.blob.size / (1024 * 1024)).toFixed(2)} MB.`);
 
       // 4. Upload final Short MP4 to Supabase Storage at: {user_id}/{proyecto_id}/clips/{clip_id}_short.mp4
       let shortUrl = burnRes.previewUrl;

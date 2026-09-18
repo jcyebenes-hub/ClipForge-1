@@ -87,10 +87,15 @@ async function extraerConFFmpeg(
   onProgress?: (p: AudioExtractionProgress) => void
 ): Promise<{ audioBlob: Blob; duration: number }> {
   const logs: string[] = [];
-  const ffmpeg = await getLoadedFFmpeg((m) => {
-    logs.push(m);
+  // getLoadedFFmpeg solo engancha onLog en la PRIMERA carga; si la instancia ya
+  // existe (p. ej. la cargó el recorte vertical) lo ignora. Enganchamos nuestro
+  // propio listener SIEMPRE para tener el diagnóstico real.
+  const ffmpeg = await getLoadedFFmpeg();
+  const logHandler = ({ message }: { message: string }) => {
+    logs.push(message);
     if (logs.length > 300) logs.shift();
-  });
+  };
+  ffmpeg.on('log', logHandler);
   const inName = 'audio_in_video.mp4';
 
   await ffmpeg.writeFile(inName, new Uint8Array(arrayBuffer));

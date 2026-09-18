@@ -956,13 +956,23 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       if (videoBlob) {
         setProgressPercent(45);
         setProgressStage('Extrayendo audio a 16kHz mono...');
-        const extraction = await extract16kHzAudio(videoBlob, (p) => {
-          setProgressPercent(45 + Math.round(p.percent * 0.2));
-          setProgressStage(p.stage);
-          if (p.detail) setProgressDetail(p.detail);
-        });
-        audioBlobToSend = extraction.audioBlob;
-        calculatedDuration = Math.round(extraction.duration);
+        try {
+          const extraction = await extract16kHzAudio(videoBlob, (p) => {
+            setProgressPercent(45 + Math.round(p.percent * 0.2));
+            setProgressStage(p.stage);
+            if (p.detail) setProgressDetail(p.detail);
+          });
+          audioBlobToSend = extraction.audioBlob;
+          calculatedDuration = Math.round(extraction.duration);
+        } catch (extractErr) {
+          // Respaldo robusto: si el navegador no puede extraer el audio (códec no
+          // soportado por FFmpeg-WASM), enviamos el VÍDEO tal cual a Whisper; Groq
+          // extrae el audio en su servidor con FFmpeg completo.
+          console.warn('Extracción de audio falló; se envía el vídeo original a Whisper:', extractErr);
+          setProgressStage('Enviando vídeo a Whisper (extracción local no disponible)...');
+          audioBlobToSend = videoBlob;
+          calculatedDuration = Math.round(proyecto?.duracion_seg || 0);
+        }
       }
 
       setProgressPercent(70);
@@ -971,7 +981,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
 
       const formData = new FormData();
       if (audioBlobToSend) {
-        formData.append('file', audioBlobToSend, 'audio.wav');
+        formData.append('file', audioBlobToSend, (audioBlobToSend.type || '').includes('mp4') ? 'video.mp4' : (audioBlobToSend.type || '').includes('webm') ? 'video.webm' : 'audio.wav');
       }
       formData.append('language', 'es');
       formData.append('duracion_seg', String(calculatedDuration));

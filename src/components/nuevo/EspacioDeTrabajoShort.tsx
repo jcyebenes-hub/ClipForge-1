@@ -129,7 +129,6 @@ export function EspacioDeTrabajoShort({ clip, onClose, acciones }: Props) {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {(
                   [
-                    { e: 'rostro' as TipoEnfoque, nombre: 'Rostro', Icono: UserCheck },
                     { e: 'deportes' as TipoEnfoque, nombre: 'Deportes', Icono: Activity },
                     { e: 'centrado' as TipoEnfoque, nombre: 'Centrado', Icono: Target },
                   ] as const
@@ -139,7 +138,7 @@ export function EspacioDeTrabajoShort({ clip, onClose, acciones }: Props) {
                     type="button"
                     onClick={() => acciones.setEnfoque(e)}
                     className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold cursor-pointer ${
-                      (clip.enfoque || 'rostro') === e
+                      (clip.enfoque || 'centrado') === e
                         ? 'bg-purple-600 border-purple-500 text-white'
                         : 'bg-[#15152a] border-purple-900/40 text-slate-300 hover:bg-purple-950/40'
                     }`}

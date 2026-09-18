@@ -623,7 +623,7 @@ export function sugerirEncuadre(stats: StatsEncuadre): SugerenciaEncuadre {
     return { enfoque: 'centrado', split: true, fondo: false, razon: `Dos o más rostros a la vez en el ${Math.round(ratioCaras * 100)}% de los fotogramas: layout Split de dos personas.` };
   }
   if (ratioCaras >= 0.5) {
-    return { enfoque: 'rostro', split: false, fondo: false, razon: `Rostro presente en el ${Math.round(ratioCaras * 100)}% de los fotogramas: seguimiento facial.` };
+    return { enfoque: 'centrado', split: false, fondo: false, razon: `Rostro presente en el ${Math.round(ratioCaras * 100)}% de los fotogramas: recorte centrado estable (sin seguimiento, sin saltos).` };
   }
   if (ratioCaras < 0.15 && movimiento >= 0.06) {
     return { enfoque: 'deportes', split: false, fondo: false, razon: 'Sin rostros claros pero con mucho movimiento: seguimiento de acción.' };

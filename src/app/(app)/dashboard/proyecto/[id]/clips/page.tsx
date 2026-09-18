@@ -218,7 +218,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
               vertical_etapa_texto: c.video_vertical_url ? 'Vertical 9:16 generado' : 'Pendiente de encuadre',
               faces_count: c.faces_count || 0,
               has_faces: c.has_faces ?? (c.faces_count ? c.faces_count > 0 : true),
-              enfoque: c.enfoque || 'rostro',
+              enfoque: c.enfoque || 'centrado',
               enfoque_usado: c.enfoque_usado,
               video_short_url: c.video_short_url || undefined,
               short_bucket_path: c.short_bucket_path,
@@ -274,7 +274,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                 vertical_progreso: c.video_vertical_url ? 100 : 0,
                 vertical_etapa_texto: c.video_vertical_url ? 'Vertical 9:16 listo' : 'Pendiente de encuadre',
                 faces_count: c.faces_count || 0,
-                enfoque: c.enfoque || 'rostro',
+                enfoque: c.enfoque || 'centrado',
                 video_short_url: c.video_short_url || c.video_url || undefined,
                 short_estado: c.video_short_url ? 'listo' : 'pendiente',
                 short_progreso: c.video_short_url ? 100 : 0,
@@ -826,7 +826,9 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
    * Converts a horizontal clip to smart reframed vertical 9:16 (MediaPipe, Motion 8x6, or Centered + FFmpeg)
    */
   const handleConvertToVertical = async (clip: ProcessedClipState, overrideEnfoque?: TipoEnfoque) => {
-    const selectedEnfoque: TipoEnfoque = overrideEnfoque || clip.enfoque || 'rostro';
+    const enfoquePedido: TipoEnfoque = overrideEnfoque || clip.enfoque || 'centrado';
+    // 'rostro' (seguimiento facial) daba saltos robóticos: se fuerza crop estático centrado.
+    const selectedEnfoque: TipoEnfoque = enfoquePedido === 'rostro' ? 'centrado' : enfoquePedido;
     const modeLabel = selectedEnfoque === 'deportes'
       ? 'Modo Deportes (Movimiento 8x6)'
       : selectedEnfoque === 'centrado'
@@ -1659,20 +1661,6 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                               >
                                 <Clapperboard className="w-3 h-3" />
                                 <span>Paso a paso</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateEnfoque(clip.id, 'rostro')}
-                                disabled={clip.vertical_estado === 'procesando' || clip.short_estado === 'procesando'}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
-                                  (clip.enfoque || 'rostro') === 'rostro'
-                                    ? 'bg-purple-600 text-white shadow-sm shadow-purple-900/40'
-                                    : 'text-slate-400 hover:text-slate-200 hover:bg-purple-950/40'
-                                }`}
-                                title="Detección facial con MediaPipe BlazeFace (ideal para personas, entrevistas, vlogs)"
-                              >
-                                <UserCheck className="w-3 h-3" />
-                                <span>Rostro</span>
                               </button>
                               <button
                                 type="button"

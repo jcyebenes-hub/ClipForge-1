@@ -64,6 +64,7 @@ import { ConfirmProcessModal } from '../../../../../../components/proyecto/Confi
 import { trackClipExported, trackError } from '../../../../../../lib/analytics';
 import { comprobarCuotaMensual, registrarMinutosProcesados } from '../../../../../../lib/planGratis';
 import { ApoyarClipForge } from '../../../../../../components/nuevo/ApoyarClipForge';
+import { KoFiTopButton } from '../../../../../../components/nuevo/KoFiTopButton';
 import { AsistenteShort } from '../../../../../../components/nuevo/AsistenteShort';
 import { EspacioDeTrabajoShort } from '../../../../../../components/nuevo/EspacioDeTrabajoShort';
 import { VOLUMEN_POR_DEFECTO } from '../../../../../../lib/musicaFondo';
@@ -1315,6 +1316,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
+            <KoFiTopButton />
             {completedCount > 0 && (
               <button
                 onClick={() => {

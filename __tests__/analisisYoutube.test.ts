@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { analizarVideos, velocidadVideo, diasDesde, type YTVideo } from '../src/lib/analisisYoutube';
+import {
+  analizarVideos,
+  velocidadVideo,
+  diasDesde,
+  grado,
+  metricasCanal,
+  type YTVideo,
+} from '../src/lib/analisisYoutube';
 
 const AHORA = Date.parse('2026-10-11T00:00:00Z');
 
@@ -127,5 +134,90 @@ describe('analisisYoutube', () => {
     const v = vid('x', 'test', 4, 30, 400_000);
     expect(Math.round(diasDesde(v.publicado, AHORA))).toBe(4);
     expect(velocidadVideo(v, AHORA)).toBeCloseTo(100_000, -3);
+  });
+});
+
+describe('métricas viewtrap', () => {
+  it('clasifica en 5 niveles con los umbrales exactos', () => {
+    expect(grado('perf', 0.29)).toBe('Malo');
+    expect(grado('perf', 0.3)).toBe('Regular');
+    expect(grado('perf', 1)).toBe('Normal');
+    expect(grado('perf', 3)).toBe('Bueno');
+    expect(grado('perf', 10)).toBe('Excelente');
+    expect(grado('perf', 999)).toBe('Excelente');
+    expect(grado('perf', null)).toBe('-');
+    // otros baremos
+    expect(grado('contrib', 1.5)).toBe('Bueno');
+    expect(grado('subPorDia', 5)).toBe('Regular');
+    expect(grado('subPorDia', 800)).toBe('Excelente');
+  });
+
+  it('calcula las métricas de canal', () => {
+    const creado = new Date(AHORA - 365 * 86400000).toISOString();
+    const c = metricasCanal(
+      { id: 'UC1', nombre: 'Canal', subs: 1000, vistasTotales: 1_000_000, videos: 100, creado },
+      AHORA
+    );
+    expect(c.diasCanal).toBe(365);
+    expect(c.vistasMedia).toBe(10_000); // 1M / 100 vídeos
+    expect(c.subPorMilVistas).toBe(1); // 1000 subs / 1M vistas * 1000
+    expect(c.subPorDia).toBe(2.7); // 1000 / 365
+    expect(c.rendimientoVideo).toBe(10); // 10000 / 1000
+    expect(c.vistasPorDia).toBe(2740); // 1M / 365
+  });
+
+  it('un canal pequeño supera a uno enorme si rinde más por suscriptor', () => {
+    const canales = {
+      PEQ: metricasCanal(
+        { id: 'PEQ', nombre: 'Pequeño', subs: 1_000, vistasTotales: 5_000_000, videos: 100, creado: new Date(AHORA - 400 * 86400000).toISOString() },
+        AHORA
+      ),
+      GRA: metricasCanal(
+        { id: 'GRA', nombre: 'Gigante', subs: 10_000_000, vistasTotales: 5_000_000_000, videos: 500, creado: new Date(AHORA - 4000 * 86400000).toISOString() },
+        AHORA
+      ),
+    };
+    const videos: YTVideo[] = [
+      // 1M de vistas en un canal de 10M subs → perf 0.1
+      { ...vid('grande', 'Vídeo del canal gigante', 1, 30, 1_000_000, 'Gigante'), canalId: 'GRA' },
+      // 50k vistas en un canal de 1k subs → perf 50 (outlier de verdad)
+      { ...vid('peque', 'Vídeo del canal pequeño', 1, 30, 50_000, 'Pequeño'), canalId: 'PEQ' },
+    ];
+    const inf = analizarVideos(videos, { ahora: AHORA, canales });
+    expect(inf.ordenadoPor).toBe('perf');
+    expect(inf.destacados[0].id).toBe('peque'); // gana el outlier pese a tener 20x menos vistas
+    expect(inf.destacados[0].perf).toBe(50);
+    expect(inf.destacados[0].gradoPerf).toBe('Excelente');
+    expect(inf.destacados[1].perf).toBe(0.1);
+    expect(inf.destacados[1].gradoPerf).toBe('Malo');
+    expect(inf.ratioExcelentes).toBe(50); // 1 de 2 supera 10x
+  });
+
+  it('contrib mide el vídeo contra la media de su propio canal', () => {
+    const canales = {
+      C: metricasCanal(
+        { id: 'C', nombre: 'Canal', subs: 10_000, vistasTotales: 30_000_000, videos: 300, creado: new Date(AHORA - 1000 * 86400000).toISOString() },
+        AHORA
+      ),
+    }; // vistas medias = 100.000
+    const videos: YTVideo[] = [
+      { ...vid('a', 'Tres veces la media', 1, 30, 300_000, 'Canal'), canalId: 'C' },
+      { ...vid('b', 'La mitad de la media', 1, 30, 50_000, 'Canal'), canalId: 'C' },
+    ];
+    const inf = analizarVideos(videos, { ahora: AHORA, canales });
+    expect(inf.destacados[0].contrib).toBe(3);
+    expect(inf.destacados[1].contrib).toBe(0.5);
+  });
+
+  it('sin datos de canal sigue ordenando por velocidad y no da grados', () => {
+    const inf = analizarVideos(
+      [vid('a', 'Uno', 10, 30, 100_000), vid('b', 'Dos', 1, 30, 50_000)],
+      { ahora: AHORA }
+    );
+    expect(inf.ordenadoPor).toBe('velocidad');
+    expect(inf.destacados[0].id).toBe('b');
+    expect(inf.destacados[0].perf).toBeNull();
+    expect(inf.destacados[0].gradoPerf).toBe('-');
+    expect(inf.ratioExcelentes).toBeNull();
   });
 });

@@ -10,7 +10,7 @@
  * límite gratuito de 10.000/día).
  */
 
-import { analizarVideos, type YTVideo } from '@/src/lib/analisisYoutube';
+import { analizarVideos, metricasCanal, type MetricaCanal, type YTVideo } from '@/src/lib/analisisYoutube';
 
 export const runtime = 'nodejs';
 
@@ -48,16 +48,33 @@ async function ytFetch(path: string, params: Record<string, string>, key: string
   return res.json();
 }
 
-async function canalAId(entrada: string, key: string): Promise<{ id: string; nombre: string } | null> {
+interface CanalCrudo {
+  id: string;
+  nombre: string;
+  subs: number;
+  vistasTotales: number;
+  videos: number;
+  creado: string;
+}
+
+async function canalAId(entrada: string, key: string): Promise<CanalCrudo | null> {
   const { id, handle } = parseCanal(entrada);
-  const params: Record<string, string> = { part: 'contentDetails,snippet' };
+  const params: Record<string, string> = { part: 'contentDetails,snippet,statistics' };
   if (id) params.id = id;
   else if (handle) params.forHandle = handle;
   else return null;
   const data = await ytFetch('channels', params, key);
   const c = data?.items?.[0];
   if (!c) return null;
-  return { id: c.id, nombre: c.snippet?.title ?? handle ?? id ?? 'canal' };
+  const st = c.statistics ?? {};
+  return {
+    id: c.id,
+    nombre: c.snippet?.title ?? handle ?? id ?? 'canal',
+    subs: st.hiddenSubscriberCount ? 0 : Number(st.subscriberCount ?? 0),
+    vistasTotales: Number(st.viewCount ?? 0),
+    videos: Number(st.videoCount ?? 0),
+    creado: c.snippet?.publishedAt ?? new Date().toISOString(),
+  };
 }
 
 async function videosDelCanal(canalId: string, nombre: string, dias: number, key: string): Promise<YTVideo[]> {
@@ -103,6 +120,7 @@ async function videosDelCanal(canalId: string, nombre: string, dias: number, key
         comentarios: Number(v.statistics?.commentCount ?? 0),
         etiquetas: v.snippet?.tags ?? [],
         canal: nombre,
+        canalId,
       });
     }
   }
@@ -137,6 +155,7 @@ export async function POST(req: Request) {
 
     const todos: YTVideo[] = [];
     const errores: string[] = [];
+    const mapaCanales: Record<string, MetricaCanal> = {};
     for (const c of canales) {
       try {
         const res = await canalAId(c, key);
@@ -144,6 +163,7 @@ export async function POST(req: Request) {
           errores.push(`No se encontró el canal «${c}».`);
           continue;
         }
+        mapaCanales[res.id] = metricasCanal(res);
         const vids = await videosDelCanal(res.id, res.nombre, dias, key);
         todos.push(...(soloShorts ? vids.filter((v) => v.duracionSeg > 0 && v.duracionSeg <= MAX_SHORT_SEG) : vids));
       } catch (e: any) {
@@ -164,7 +184,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const informe = analizarVideos(todos, { periodoDias: dias });
+    const informe = analizarVideos(todos, { periodoDias: dias, canales: mapaCanales });
     return Response.json({ informe, errores, analizados: todos.length });
   } catch (e: any) {
     console.error('[competencia] Error:', e);

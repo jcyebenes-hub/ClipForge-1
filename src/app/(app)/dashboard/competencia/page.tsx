@@ -1,6 +1,18 @@
 import React, { useState } from 'react';
 import { Radar, Loader2, AlertTriangle, Search, Copy, Check, TrendingUp, Clock, CalendarClock } from 'lucide-react';
+import { grado, type NombreMetrica } from '../../../../lib/analisisYoutube';
+
+const gradoLabel = (m: NombreMetrica, v: number | null) => grado(m, v);
 import type { InformeAnalisis } from '../../../../lib/analisisYoutube';
+
+/** Color por nivel de la clasificación viewtrap. */
+const colorGrado = (g: string) =>
+  g === 'Excelente' ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10'
+  : g === 'Bueno' ? 'text-cyan-300 border-cyan-500/40 bg-cyan-500/10'
+  : g === 'Normal' ? 'text-slate-300 border-slate-600/50 bg-slate-500/10'
+  : g === 'Regular' ? 'text-amber-300 border-amber-500/40 bg-amber-500/10'
+  : g === 'Malo' ? 'text-rose-300 border-rose-500/40 bg-rose-500/10'
+  : 'text-slate-500 border-slate-700 bg-slate-800/40';
 
 interface Props {
   onNavigate?: (path: string) => void;
@@ -131,7 +143,12 @@ const CompetenciaPage: React.FC<Props> = () => {
               <Stat icon={<Clock className="w-4 h-4 text-cyan-400" />} label="Duración top" value={`${informe.duracionMediaTop}s`} sub={`resto: ${informe.duracionMediaResto}s`} />
               <Stat icon={<TrendingUp className="w-4 h-4 text-emerald-400" />} label="Vistas media top" value={informe.vistasMediaTop.toLocaleString('es-ES')} sub={`resto: ${informe.vistasMediaResto.toLocaleString('es-ES')}`} />
               <Stat icon={<CalendarClock className="w-4 h-4 text-pink-400" />} label="Publicaciones/sem" value={String(informe.publicacionesPorSemana)} sub={`en ${informe.periodoDias} días`} />
-              <Stat icon={<Radar className="w-4 h-4 text-purple-400" />} label="Vídeos analizados" value={String(analizados)} sub={informe.canales.join(', ').slice(0, 24)} />
+              <Stat
+                icon={<Radar className="w-4 h-4 text-purple-400" />}
+                label="Outliers (perf ≥10)"
+                value={informe.ratioExcelentes === null ? '—' : `${informe.ratioExcelentes}%`}
+                sub={`${analizados} Shorts · ${informe.canales.map((c) => c.nombre).join(', ').slice(0, 22)}`}
+              />
             </div>
 
             {/* Sugerencias */}
@@ -146,6 +163,45 @@ const CompetenciaPage: React.FC<Props> = () => {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* Canales: crecimiento */}
+            {informe.canales.length > 0 && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 overflow-x-auto">
+                <h2 className="text-sm font-bold text-slate-200 mb-3">Canales: tamaño y crecimiento</h2>
+                <table className="w-full text-xs sm:text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-wider text-slate-500">
+                      <th className="pb-2 pr-3 font-semibold">Canal</th>
+                      <th className="pb-2 pr-3 font-semibold">Subs</th>
+                      <th className="pb-2 pr-3 font-semibold">Subs/día</th>
+                      <th className="pb-2 pr-3 font-semibold">Vistas media</th>
+                      <th className="pb-2 font-semibold">Rendim. vídeo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {informe.canales.map((c) => (
+                      <tr key={c.id} className="border-t border-slate-800/70">
+                        <td className="py-2 pr-3 font-medium text-slate-200">{c.nombre}</td>
+                        <td className="py-2 pr-3 text-slate-300">{c.subs.toLocaleString('es-ES')}</td>
+                        <td className="py-2 pr-3">
+                          <span className="text-slate-200">{(c.subPorDia ?? 0).toLocaleString('es-ES')}</span>
+                          <span className={`ml-1.5 rounded border px-1 py-0.5 text-[10px] ${colorGrado(gradoLabel('subPorDia', c.subPorDia))}`}>
+                            {gradoLabel('subPorDia', c.subPorDia)}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3 text-slate-300">{c.vistasMedia.toLocaleString('es-ES')}</td>
+                        <td className="py-2">
+                          <span className="text-slate-200">{c.rendimientoVideo ?? '—'}×</span>
+                          <span className={`ml-1.5 rounded border px-1 py-0.5 text-[10px] ${colorGrado(gradoLabel('rendimientoVideo', c.rendimientoVideo))}`}>
+                            {gradoLabel('rendimientoVideo', c.rendimientoVideo)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
 
@@ -172,7 +228,12 @@ const CompetenciaPage: React.FC<Props> = () => {
 
             {/* Top vídeos */}
             <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
-              <h2 className="text-sm font-bold text-slate-200 mb-3">Los que más rinden (por vistas/día)</h2>
+              <h2 className="text-sm font-bold text-slate-200 mb-1">
+                Los que más rinden {informe.ordenadoPor === 'perf' ? '(por rendimiento: vistas ÷ suscriptores)' : '(por vistas/día)'}
+              </h2>
+              <p className="text-[11px] text-slate-500 mb-3">
+                Un Short con «50× subs» multiplica por 50 los suscriptores de su canal: es un outlier aunque el canal sea pequeño.
+              </p>
               <div className="space-y-2">
                 {informe.destacados.map((v) => (
                   <div key={v.id} className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3.5 py-2.5">
@@ -185,8 +246,20 @@ const CompetenciaPage: React.FC<Props> = () => {
                       >
                         {v.titulo}
                       </a>
-                      <div className="mt-0.5 text-[11px] text-slate-500">
-                        {v.vistas.toLocaleString('es-ES')} vistas · {v.vistasPorDia.toLocaleString('es-ES')}/día · {v.duracionSeg}s{v.canal ? ` · ${v.canal}` : ''}
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                        <span className="text-slate-400">{v.vistas.toLocaleString('es-ES')} vistas</span>
+                        <span>· {v.vistasPorDia.toLocaleString('es-ES')}/día · {v.duracionSeg}s</span>
+                        {v.perf !== null && (
+                          <span className={`rounded border px-1.5 py-0.5 font-semibold ${colorGrado(v.gradoPerf)}`} title="Rendimiento: vistas ÷ suscriptores del canal">
+                            {v.perf}× subs
+                          </span>
+                        )}
+                        {v.contrib !== null && (
+                          <span className={`rounded border px-1.5 py-0.5 font-semibold ${colorGrado(v.gradoContrib)}`} title="Contribución: vistas ÷ media del canal">
+                            {v.contrib}× media
+                          </span>
+                        )}
+                        {v.canal && <span>· {v.canal}</span>}
                       </div>
                     </div>
                     <button

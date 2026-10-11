@@ -36,6 +36,7 @@ const ClipEditarPage = lazy(
 );
 const PublicarPage = lazy(() => import('./app/(app)/dashboard/publicar/page'));
 const EstadisticasPage = lazy(() => import('./app/(app)/dashboard/estadisticas/page'));
+const CompetenciaPage = lazy(() => import('./app/(app)/dashboard/competencia/page'));
 
 /** Spinner reutilizado tanto para el chequeo de auth como para Suspense. */
 function Cargando({ texto = 'Cargando ClipForge...' }: { texto?: string }) {
@@ -131,6 +132,15 @@ function AppRouter() {
           <AppNavbar currentPath="/dashboard/publicar" onNavigate={navigate} />
           <PublicarPage onNavigate={navigate} />
         </div>
+      );
+    }
+
+    if (currentPath === '/dashboard/competencia') {
+      return (
+        <>
+          <AppNavbar currentPath="/dashboard/competencia" onNavigate={navigate} />
+          <CompetenciaPage onNavigate={navigate} />
+        </>
       );
     }
 

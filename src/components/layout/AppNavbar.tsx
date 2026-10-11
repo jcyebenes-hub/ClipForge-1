@@ -13,6 +13,7 @@ import {
   Youtube,
   Calendar as CalendarIcon,
   BarChart3,
+  Radar,
   ShieldCheck,
   Globe
 } from 'lucide-react';
@@ -103,6 +104,18 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                 >
                   <BarChart3 className="w-4 h-4 text-cyan-400" />
                   <span>{t('estadisticas')}</span>
+                </button>
+
+                <button
+                  onClick={() => handleNav('/dashboard/competencia')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    currentPath === '/dashboard/competencia'
+                      ? 'bg-purple-950/60 text-white border border-purple-800/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+                  }`}
+                >
+                  <Radar className="w-4 h-4 text-emerald-400" />
+                  <span>Competencia</span>
                 </button>
 
                 <button

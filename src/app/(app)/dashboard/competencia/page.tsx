@@ -22,6 +22,7 @@ const CompetenciaPage: React.FC<Props> = () => {
   const [canales, setCanales] = useState('');
   const [dias, setDias] = useState(90);
   const [soloShorts, setSoloShorts] = useState(true);
+  const [orden, setOrden] = useState<'contribucion' | 'rendimiento'>('contribucion');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [informe, setInforme] = useState<InformeAnalisis | null>(null);
@@ -48,7 +49,7 @@ const CompetenciaPage: React.FC<Props> = () => {
       const res = await fetch('/api/competencia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ canales: lista, dias, soloShorts }),
+        body: JSON.stringify({ canales: lista, dias, soloShorts, orden }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -106,6 +107,18 @@ const CompetenciaPage: React.FC<Props> = () => {
                 <option value={90}>Últimos 90 días</option>
               </select>
             </label>
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Criterio</span>
+              <select
+                value={orden}
+                onChange={(e) => setOrden(e.target.value as 'contribucion' | 'rendimiento')}
+                className="mt-1.5 rounded-xl bg-slate-900/70 border border-slate-700 px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              >
+                <option value="contribucion">Vs. media del canal</option>
+                <option value="rendimiento">Vs. suscriptores</option>
+              </select>
+            </label>
+
             <label className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2.5 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -229,7 +242,12 @@ const CompetenciaPage: React.FC<Props> = () => {
             {/* Top vídeos */}
             <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
               <h2 className="text-sm font-bold text-slate-200 mb-1">
-                Los que más rinden {informe.ordenadoPor === 'perf' ? '(por rendimiento: vistas ÷ suscriptores)' : '(por vistas/día)'}
+                Los que más rinden{' '}
+                {informe.ordenadoPor === 'contrib'
+                  ? '(vs. la media de su propio canal)'
+                  : informe.ordenadoPor === 'perf'
+                    ? '(vs. sus suscriptores)'
+                    : '(por vistas/día)'}
               </h2>
               <p className="text-[11px] text-slate-500 mb-3">
                 Un Short con «50× subs» multiplica por 50 los suscriptores de su canal: es un outlier aunque el canal sea pequeño.

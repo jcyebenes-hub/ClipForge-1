@@ -183,7 +183,7 @@ describe('métricas viewtrap', () => {
       // 50k vistas en un canal de 1k subs → perf 50 (outlier de verdad)
       { ...vid('peque', 'Vídeo del canal pequeño', 1, 30, 50_000, 'Pequeño'), canalId: 'PEQ' },
     ];
-    const inf = analizarVideos(videos, { ahora: AHORA, canales });
+    const inf = analizarVideos(videos, { ahora: AHORA, canales, orden: 'rendimiento' });
     expect(inf.ordenadoPor).toBe('perf');
     expect(inf.destacados[0].id).toBe('peque'); // gana el outlier pese a tener 20x menos vistas
     expect(inf.destacados[0].perf).toBe(50);
@@ -221,3 +221,42 @@ describe('métricas viewtrap', () => {
     expect(inf.ratioExcelentes).toBeNull();
   });
 });
+
+  it('por defecto ordena por contribución (comparable entre tamaños)', () => {
+    const canales = {
+      PEQ: metricasCanal(
+        { id: 'PEQ', nombre: 'Pequeño', subs: 1_000, vistasTotales: 5_000_000, videos: 100, creado: new Date(AHORA - 400 * 86400000).toISOString() },
+        AHORA
+      ), // media 50.000
+      GRA: metricasCanal(
+        { id: 'GRA', nombre: 'Gigante', subs: 10_000_000, vistasTotales: 5_000_000_000, videos: 500, creado: new Date(AHORA - 4000 * 86400000).toISOString() },
+        AHORA
+      ), // media 10.000.000
+    };
+    const videos: YTVideo[] = [
+      { ...vid('g', 'Del gigante', 1, 30, 9_000_000, 'Gigante'), canalId: 'GRA' }, // contrib 0.9
+      { ...vid('p', 'Del pequeño', 1, 30, 200_000, 'Pequeño'), canalId: 'PEQ' },  // contrib 4
+    ];
+    const inf = analizarVideos(videos, { ahora: AHORA, canales });
+    expect(inf.ordenadoPor).toBe('contrib');
+    expect(inf.destacados[0].id).toBe('p'); // 4x su media gana a 0.9x, pese a 45x menos vistas
+    expect(inf.destacados[0].contrib).toBe(4);
+    expect(inf.destacados[1].contrib).toBe(0.9);
+  });
+
+  it('no aconseja copiar algo que no destaca sobre la media de su canal', () => {
+    const canales = {
+      G: metricasCanal(
+        { id: 'G', nombre: 'Gigante', subs: 10_000_000, vistasTotales: 1_000_000_000, videos: 100, creado: new Date(AHORA - 3000 * 86400000).toISOString() },
+        AHORA
+      ), // media 10.000.000
+    };
+    const videos: YTVideo[] = [
+      { ...vid('a', 'Short normal del gigante', 1, 30, 5_000_000, 'Gigante'), canalId: 'G' },
+      { ...vid('b', 'Otro short normal', 2, 30, 4_000_000, 'Gigante'), canalId: 'G' },
+    ];
+    const inf = analizarVideos(videos, { ahora: AHORA, canales });
+    const texto = inf.sugerencias.join(' | ');
+    expect(texto).not.toContain('Copia su gancho');
+    expect(texto).toContain('crecen por tamaño');
+  });

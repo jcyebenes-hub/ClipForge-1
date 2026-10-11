@@ -183,8 +183,8 @@ export interface InformeAnalisis {
   publicacionesPorSemana: number;
   /** % de Shorts con rendimiento >= 10 (great_ratio). */
   ratioExcelentes: number | null;
-  /** 'perf' si se pudo ordenar por rendimiento, 'velocidad' si no había datos de canal. */
-  ordenadoPor: 'perf' | 'velocidad';
+  /** Criterio con el que se ordenó; 'velocidad' si no había datos de canal. */
+  ordenadoPor: 'contrib' | 'perf' | 'velocidad';
   sugerencias: string[];
 }
 
@@ -196,6 +196,13 @@ export function analizarVideos(
     topN?: number;
     ahora?: number;
     canales?: Record<string, MetricaCanal>;
+    /**
+     * 'contribucion' (por defecto): compara cada Short con la media de SU canal, así
+     * que es comparable entre canales de tamaños distintos.
+     * 'rendimiento': vistas ÷ suscriptores (el orden de la herramienta de referencia);
+     * favorece canales pequeños y castiga a los gigantes, que nunca llegan a 1×.
+     */
+    orden?: 'contribucion' | 'rendimiento';
   } = {}
 ): InformeAnalisis {
   const ahora = opts.ahora ?? Date.now();
@@ -216,11 +223,15 @@ export function analizarVideos(
   // Orden: primero por rendimiento (vistas ÷ suscriptores), que es lo que detecta
   // outliers; si no hay datos de canal, todos tienen perf=null y el orden recae en
   // la velocidad (vistas/día), manteniendo el comportamiento anterior.
+  const modo = opts.orden ?? 'contribucion';
   const hayPerf = conVel.some((x) => x.perf !== null);
+  const hayContrib = conVel.some((x) => x.contrib !== null);
+  const metricaOrden: 'perf' | 'contrib' | null =
+    modo === 'rendimiento' ? (hayPerf ? 'perf' : null) : hayContrib ? 'contrib' : null;
   conVel.sort((a, b) => {
-    if (hayPerf) {
-      const pa = a.perf ?? -1;
-      const pb = b.perf ?? -1;
+    if (metricaOrden) {
+      const pa = a[metricaOrden] ?? -1;
+      const pb = b[metricaOrden] ?? -1;
       if (pb !== pa) return pb - pa;
     }
     return b.vel - a.vel;
@@ -343,14 +354,26 @@ export function analizarVideos(
   }
 
   const mejor = destacados[0];
-  if (mejor && mejor.perf !== null) {
-    sugerencias.push(
-      `Mayor outlier: «${mejor.v.titulo.slice(0, 60)}» rinde ${mejor.perf}× sus suscriptores (${grado('perf', mejor.perf)}). Copia su estructura.`
-    );
-  } else if (mejor) {
-    sugerencias.push(
-      `Tu mejor referencia reciente: «${mejor.v.titulo.slice(0, 70)}» con ${mejor.v.vistas.toLocaleString('es-ES')} vistas.`
-    );
+  if (mejor) {
+    const nombre = mejor.v.titulo.slice(0, 60);
+    const esOutlier =
+      (metricaOrden === 'contrib' && mejor.contrib !== null && mejor.contrib >= 1.5) ||
+      (metricaOrden === 'perf' && mejor.perf !== null && mejor.perf >= 3);
+    if (esOutlier) {
+      const detalle =
+        metricaOrden === 'contrib'
+          ? `${mejor.contrib}× las vistas medias de su canal`
+          : `${mejor.perf}× sus suscriptores`;
+      sugerencias.push(`Mayor outlier: «${nombre}» logra ${detalle}. Copia su gancho y su estructura.`);
+    } else if (mejor.contrib !== null) {
+      sugerencias.push(
+        `Ningún Short analizado destaca sobre la media de su canal (el mejor se queda en ${mejor.contrib}×). Estos canales crecen por tamaño, no por formato: busca referencias en canales más pequeños de tu nicho.`
+      );
+    } else {
+      sugerencias.push(
+        `Tu mejor referencia reciente: «${mejor.v.titulo.slice(0, 70)}» con ${mejor.v.vistas.toLocaleString('es-ES')} vistas.`
+      );
+    }
   }
   if (ratioExcelentes !== null) {
     sugerencias.push(
@@ -380,7 +403,7 @@ export function analizarVideos(
     vistasMediaResto,
     publicacionesPorSemana,
     ratioExcelentes,
-    ordenadoPor: hayPerf ? 'perf' : 'velocidad',
+    ordenadoPor: metricaOrden ?? 'velocidad',
     sugerencias,
   };
 }

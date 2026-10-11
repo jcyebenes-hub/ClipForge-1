@@ -150,6 +150,7 @@ export async function POST(req: Request) {
     // contaminan el ranking (los largos acumulan vistas y siempre ganan).
     // YouTube admite Shorts de hasta 3 minutos, así que ese es el umbral.
     const soloShorts = body.soloShorts !== false;
+    const orden: 'contribucion' | 'rendimiento' = body.orden === 'rendimiento' ? 'rendimiento' : 'contribucion';
     const MAX_SHORT_SEG = 180;
     if (!canales.length) return Response.json({ error: 'Indica al menos un canal (@handle o URL).' }, { status: 400 });
 
@@ -184,7 +185,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const informe = analizarVideos(todos, { periodoDias: dias, canales: mapaCanales });
+    const informe = analizarVideos(todos, { periodoDias: dias, canales: mapaCanales, orden });
     return Response.json({ informe, errores, analizados: todos.length });
   } catch (e: any) {
     console.error('[competencia] Error:', e);

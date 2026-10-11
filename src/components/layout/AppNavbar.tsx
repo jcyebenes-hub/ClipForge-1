@@ -14,6 +14,7 @@ import {
   Calendar as CalendarIcon,
   BarChart3,
   Radar,
+  Fingerprint,
   ShieldCheck,
   Globe
 } from 'lucide-react';
@@ -21,6 +22,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useYouTube , YOUTUBE_UPLOAD_HABILITADO } from '../../context/YouTubeAuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { KoFiTopButton } from '../nuevo/KoFiTopButton';
+import { activarHuella } from '../../lib/passkeys';
+import { toast } from 'sonner';
 import { ComoSeProcesaModal } from '../common/ComoSeProcesaModal';
 
 interface AppNavbarProps {
@@ -270,6 +273,27 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                           <span>{t('conectar_youtube')}</span>
                         </button>
                       ) : null}
+                    </div>
+
+                    <div className="pt-1 border-t border-slate-800/80">
+                      <button
+                        id="activar-huella-btn"
+                        onClick={async () => {
+                          setDropdownOpen(false);
+                          toast.info('Sigue las instrucciones del navegador para registrar tu huella');
+                          const res = await activarHuella();
+                          if (res.ok) {
+                            toast.success('Huella activada: la próxima vez entras con el dedo');
+                          } else {
+                            toast.error(res.error ?? 'No se ha podido activar la huella.');
+                          }
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white hover:bg-purple-950/30 text-left transition-colors"
+                        title="Registra la huella dactilar o el Face ID de este dispositivo para entrar sin contraseña"
+                      >
+                        <Fingerprint className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Activar la huella</span>
+                      </button>
                     </div>
 
                     <div className="pt-1 border-t border-slate-800/80">

@@ -62,11 +62,16 @@ export function createClient() {
   }
 
   // En servidor (Node.js) usamos el cliente universal; en el navegador, el de @supabase/ssr
+  // `experimental.passkey` habilita el soporte de passkeys (huella dactilar / Face ID)
+  // de Supabase Auth. Es aditivo: si el interruptor no está encendido en el panel de
+  // Supabase, las llamadas devuelven `passkey_disabled` y nada más cambia.
+  const opcionesAuth = { auth: { experimental: { passkey: true } } } as const;
+
   if (IS_NODE) {
-    return createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey);
+    return createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, opcionesAuth);
   }
 
-  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
+  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey, opcionesAuth);
 }
 
 // Instancia singleton para uso en componentes de cliente

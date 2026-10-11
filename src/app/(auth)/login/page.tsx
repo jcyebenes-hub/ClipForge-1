@@ -9,11 +9,13 @@ import {
   Eye, 
   EyeOff, 
   ShieldCheck, 
-  Flame 
+  Flame, 
+  Fingerprint 
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { SupabaseStatusBadge } from '../../../components/common/SupabaseStatusBadge';
 import { toast } from 'sonner';
+import { entrarConHuella, passkeysDisponibles } from '../../../lib/passkeys';
 
 interface LoginPageProps {
   onNavigate?: (path: string) => void;
@@ -27,6 +29,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [magicLinkLoading, setMagicLinkLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  // Solo se ofrece el botón si el navegador puede (móvil: Touch ID / huella Android).
+  const [soportaPasskeys] = useState(() => passkeysDisponibles());
+
+  /** Entra con la huella dactilar / Face ID. No usa el correo ni la contraseña. */
+  const handlePasskey = async () => {
+    setPasskeyLoading(true);
+    const res = await entrarConHuella();
+    setPasskeyLoading(false);
+    if (!res.ok) {
+      toast.error(res.error ?? 'No se ha podido entrar con la huella.');
+      return;
+    }
+    toast.success('Has entrado con la huella');
+    onNavigate?.('/dashboard');
+  };
 
   const handleMagicLink = async () => {
     if (!email || !email.includes('@')) {
@@ -232,6 +250,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
                 </>
               )}
             </button>
+
+            {/* Entrada con huella dactilar / Face ID (solo si el navegador puede) */}
+            {soportaPasskeys && (
+              <button
+                id="login-passkey-btn"
+                type="button"
+                onClick={handlePasskey}
+                disabled={passkeyLoading}
+                className="w-full mt-2 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-slate-100 bg-[#121222] hover:bg-[#1a1a36] border border-slate-700 hover:border-purple-500/50 transition-all duration-200 cursor-pointer disabled:opacity-50"
+              >
+                {passkeyLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Verificando…</span>
+                  </>
+                ) : (
+                  <>
+                    <Fingerprint className="w-4 h-4 text-cyan-400" />
+                    <span>Entrar con la huella</span>
+                  </>
+                )}
+              </button>
+            )}
           </form>
 
           {/* Magic Link (entrar sin contraseña) */}

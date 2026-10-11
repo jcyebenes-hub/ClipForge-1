@@ -19,6 +19,29 @@ let isLoaded = false;
  * Initializes and loads FFmpeg WASM instance.
  * Attempts multithreaded core if SharedArrayBuffer is available, otherwise falls back gracefully to standard core.
  */
+/**
+ * Aplica una velocidad global (p. ej. 1.3) re-codificando en un paso aislado.
+ * setpts (vídeo) + atempo (audio, conserva tono) mantienen la sincronía A/V.
+ */
+export async function aplicarVelocidad(videoBlob: Blob, velocidad: number): Promise<Blob> {
+  const ffmpeg = await getLoadedFFmpeg();
+  const inName = 'ritmo_in.mp4';
+  const outName = 'ritmo_out.mp4';
+  await ffmpeg.writeFile(inName, new Uint8Array(await videoBlob.arrayBuffer()));
+  const code = await ffmpeg.exec([
+    '-i', inName,
+    '-vf', `setpts=PTS/${velocidad}`,
+    '-af', `atempo=${velocidad}`,
+    '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+    '-c:a', 'aac',
+    outName,
+  ]);
+  try { await ffmpeg.deleteFile(inName); await ffmpeg.deleteFile(outName); } catch {}
+  if (code !== 0) throw new Error('No se pudo aplicar la velocidad al vídeo.');
+  const out = (await ffmpeg.readFile(outName)) as Uint8Array;
+  return new Blob([out.buffer], { type: 'video/mp4' });
+}
+
 export async function getLoadedFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   if (ffmpegInstance && isLoaded) {
     return ffmpegInstance;

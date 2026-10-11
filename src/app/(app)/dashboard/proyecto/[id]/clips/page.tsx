@@ -24,6 +24,7 @@ import {
   Eye,
   UserCheck,
   Split,
+  Gauge,
   Maximize2,
   Activity,
   Target,
@@ -45,6 +46,7 @@ import { supabase } from '../../../../../../lib/supabase/client';
 import type { Proyecto, Clip } from '../../../../../../lib/supabase/types';
 import { cutVideoSegment, CutProgressCallback } from '../../../../../../lib/videoCutter';
 import { generarShortVertical, VerticalCropProgress, TipoEnfoque, detectarRostros, detectarMovimiento, sugerirEncuadre } from '../../../../../../lib/encuadre';
+import { aplicarVelocidad } from '../../../../../../lib/videoCutter';
 import {
   SubtitleStylePreset,
   SUBTITLE_STYLES,
@@ -143,6 +145,8 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
   const [musica, setMusica] = useState<{ blob: Blob; volumen: number; nombre: string } | null>(null);
   const [fondoDesenfocado, setFondoDesenfocado] = useState<boolean>(() => leerEncuadreGuardado(effectiveId).fondo);
   const [modoSplit, setModoSplit] = useState<boolean>(() => leerEncuadreGuardado(effectiveId).split);
+  const [ritmoRapido, setRitmoRapido] = useState<boolean>(true);
+  const [tituloArriba, setTituloArriba] = useState<boolean>(true);
   const [clipEnFocoId, setClipEnFocoId] = useState<string | null>(null);
 
   // Recuerda los modos de encuadre por proyecto para la próxima visita.
@@ -1129,6 +1133,10 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           segmentDuration: 0.5, // segmentos más cortos: el crop sigue la cara con saltos más pequeños y frecuentes (menos "cabezazos")
         });
         vertBlob = vertRes.blob;
+        if (ritmoRapido) {
+          setClipsQueue(prev => prev.map(c => c.id === clip.id ? { ...c, short_etapa_texto: 'Aplicando ritmo 1.3×...' } : c));
+          vertBlob = await aplicarVelocidad(vertBlob, 1.3);
+        }
       }
 
       // 2. Get words for this clip
@@ -1144,6 +1152,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
         finSeg: clip.fin_seg || (clip.inicio_seg + clip.duracion_seg),
         stylePreset: selectedStyle,
         hookText: hookTextToBurn,
+        tituloArriba,
         marcaDeAgua: isFreePlan,
         onProgress: (p) => {
           setClipsQueue(prev => prev.map(c => c.id === clip.id ? {
@@ -1515,6 +1524,38 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           >
             <Columns2 className="w-3.5 h-3.5" />
             Split 2 personas: {modoSplit ? 'sí' : 'no'}
+          </button>
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setRitmoRapido((v) => !v)}
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer ${
+              ritmoRapido
+                ? 'bg-amber-950 text-amber-300 border-amber-700'
+                : 'bg-[#121222] text-slate-400 border-purple-900/40 hover:bg-[#1a1a36]'
+            }`}
+            title="Acelera elShort a 1.3× (ritmo ágil, conserva el tono): la receta de los Shorts que funcionan"
+          >
+            <Gauge className="w-3.5 h-3.5" />
+            Ritmo 1.3×: {ritmoRapido ? 'sí' : 'no'}
+          </button>
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setTituloArriba((v) => !v)}
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer ${
+              tituloArriba
+                ? 'bg-yellow-950 text-yellow-300 border-yellow-700'
+                : 'bg-[#121222] text-slate-400 border-purple-900/40 hover:bg-[#1a1a36]'
+            }`}
+            title="Quema el gancho como título grande arriba (genera curiosidad en los primeros segundos)"
+          >
+            <Type className="w-3.5 h-3.5" />
+            Título arriba: {tituloArriba ? 'sí' : 'no'}
           </button>
         </div>
 

@@ -452,7 +452,8 @@ export function renderSubtitulosEnCanvas(
   groups: SubtitleGroup[],
   currentRelSec: number,
   stylePreset: SubtitleStylePreset = 'moderno',
-  marcaDeAgua: boolean = false
+  marcaDeAgua: boolean = false,
+  topTitle?: string
 ): void {
   const style = SUBTITLE_STYLES[stylePreset] || SUBTITLE_STYLES.moderno;
 
@@ -468,6 +469,26 @@ export function renderSubtitulosEnCanvas(
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 1;
     ctx.fillText('ClipForge', width - 24, height - 24);
+    ctx.restore();
+  }
+
+  // Título-gancho arriba (caja gruesa que genera curiosidad), si está activo.
+  if (topTitle) {
+    ctx.save();
+    const sTop = width / 1080;
+    ctx.font = `900 ${Math.round(54 * sTop)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const pad = 26 * sTop;
+    const bh = 84 * sTop;
+    const y = 70 * sTop + bh / 2;
+    const tw = ctx.measureText(topTitle).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.62)';
+    ctx.beginPath();
+    ctx.roundRect(width / 2 - tw / 2 - pad, y - bh / 2, tw + pad * 2, bh, 14 * sTop);
+    ctx.fill();
+    ctx.fillStyle = '#FFE45E';
+    ctx.fillText(topTitle, width / 2, y);
     ctx.restore();
   }
 
@@ -576,6 +597,7 @@ export interface BurnSubtitlesOptions {
   finSeg: number;
   stylePreset?: SubtitleStylePreset;
   hookText?: string;
+  tituloArriba?: boolean;
   aspectRatio?: '9:16' | '1:1' | '16:9';
   marcaDeAgua?: boolean;
   exportSettings?: Partial<ExportSettings>;
@@ -596,9 +618,10 @@ async function quemarSubtitulosCanvas(opts: {
   stylePreset: SubtitleStylePreset;
   marcaDeAgua: boolean;
   hookText?: string;
+  topTitle?: string;
   onProgress?: (p: { percent: number; stage: string; detail: string }) => void;
 }): Promise<Blob> {
-  const { verticalVideoBlob, groups, stylePreset, marcaDeAgua, hookText, onProgress } = opts;
+  const { verticalVideoBlob, groups, stylePreset, marcaDeAgua, hookText, onProgress, topTitle } = opts;
 
   const video = document.createElement('video');
   const objUrl = URL.createObjectURL(verticalVideoBlob);
@@ -643,7 +666,7 @@ async function quemarSubtitulosCanvas(opts: {
   const hookEnd = hookText ? 1.5 : 0;
   const drawFrame = () => {
     ctx.drawImage(video, 0, 0, W, H);
-    renderSubtitulosEnCanvas(ctx, W, H, groups, video.currentTime, stylePreset, marcaDeAgua);
+    renderSubtitulosEnCanvas(ctx, W, H, groups, video.currentTime, stylePreset, marcaDeAgua, topTitle);
     if (hookText && video.currentTime <= hookEnd) {
       ctx.save();
       ctx.font = `bold ${Math.round(W / 15)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
@@ -709,6 +732,7 @@ export async function quemarSubtitulosVideo(options: BurnSubtitlesOptions): Prom
     finSeg,
     stylePreset = 'moderno',
     hookText,
+    tituloArriba = false,
     aspectRatio = '9:16',
     marcaDeAgua = true,
     exportSettings,
@@ -751,6 +775,7 @@ export async function quemarSubtitulosVideo(options: BurnSubtitlesOptions): Prom
         stylePreset,
         marcaDeAgua: activeWatermark,
         hookText,
+        topTitle: tituloArriba ? hookText : undefined,
         onProgress,
       });
       if (canvasBlob && canvasBlob.size > 0) {

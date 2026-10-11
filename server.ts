@@ -43,6 +43,7 @@ import { POST as instagramPublishPOST } from './src/app/api/instagram/publish/ro
 import { GET as cronPublicarGET } from './src/app/api/cron/publicar/route';
 import { GET as cronVigilarGET } from './src/app/api/cron/vigilar-canal/route';
 import { POST as competenciaPOST } from './src/app/api/competencia/route';
+import { POST as tendenciasPOST } from './src/app/api/tendencias/route';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -146,6 +147,7 @@ app.post(`${api}/instagram/publish`, adapt(instagramPublishPOST));
 app.get(`${api}/cron/publicar`, adapt(cronPublicarGET));
 app.get(`${api}/cron/vigilar-canal`, adapt(cronVigilarGET));
 app.post(`${api}/competencia`, adapt(competenciaPOST));
+app.post(`${api}/tendencias`, adapt(tendenciasPOST));
 
 // Ruta de salud (para Render / monitors)
 app.get('/health', (_req, res) => {

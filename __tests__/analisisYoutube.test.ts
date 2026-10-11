@@ -260,3 +260,30 @@ describe('métricas viewtrap', () => {
     expect(texto).not.toContain('Copia su gancho');
     expect(texto).toContain('crecen por tamaño');
   });
+
+  it('separa los canales jóvenes (<1 año) ordenados por crecimiento', () => {
+    const canales = {
+      NUEVO: metricasCanal(
+        { id: 'NUEVO', nombre: 'Recién creado', subs: 30_000, vistasTotales: 9_000_000, videos: 60, creado: new Date(AHORA - 100 * 86400000).toISOString() },
+        AHORA
+      ), // 300 subs/día
+      VIEJO: metricasCanal(
+        { id: 'VIEJO', nombre: 'Veterano', subs: 5_000_000, vistasTotales: 2_000_000_000, videos: 900, creado: new Date(AHORA - 3000 * 86400000).toISOString() },
+        AHORA
+      ), // 1.666 subs/día pero no es joven
+      MEDIO: metricasCanal(
+        { id: 'MEDIO', nombre: 'Otro joven', subs: 10_000, vistasTotales: 2_000_000, videos: 40, creado: new Date(AHORA - 200 * 86400000).toISOString() },
+        AHORA
+      ), // 50 subs/día
+    };
+    const videos: YTVideo[] = [
+      { ...vid('a', 'Un short', 1, 30, 100_000, 'Recién creado'), canalId: 'NUEVO' },
+      { ...vid('b', 'Otro short', 1, 30, 90_000, 'Veterano'), canalId: 'VIEJO' },
+      { ...vid('c', 'Y otro', 1, 30, 80_000, 'Otro joven'), canalId: 'MEDIO' },
+    ];
+    const inf = analizarVideos(videos, { ahora: AHORA, canales });
+    expect(inf.canales.length).toBe(3);
+    // el veterano queda fuera aunque crezca más por día
+    expect(inf.canalesJovenes.map((c) => c.id)).toEqual(['NUEVO', 'MEDIO']);
+    expect(inf.canalesJovenes.every((c) => c.diasCanal <= 365)).toBe(true);
+  });

@@ -68,6 +68,9 @@ export type NombreMetrica = keyof typeof UMBRALES_GRADO;
 
 export const ETIQUETAS_GRADO = ['Malo', 'Regular', 'Normal', 'Bueno', 'Excelente'] as const;
 
+/** Antigüedad máxima para considerar un canal "joven" (en crecimiento). */
+export const DIAS_CANAL_JOVEN = 365;
+
 /** Clasifica un valor en 5 niveles según los umbrales. Devuelve '-' si no hay dato. */
 export function grado(metrica: NombreMetrica, valor: number | null | undefined): string {
   if (valor === null || valor === undefined || Number.isNaN(valor)) return '-';
@@ -172,6 +175,8 @@ export interface InformeAnalisis {
   total: number;
   periodoDias: number;
   canales: MetricaCanal[];
+  /** Canales con menos de 1 año, ordenados por suscriptores/día: los que suben. */
+  canalesJovenes: MetricaCanal[];
   destacados: VideoInforme[];
   top: VideoInforme[];
   palabrasTitulo: PalabraTitulo[];
@@ -328,6 +333,9 @@ export function analizarVideos(
   const canales: MetricaCanal[] = Object.values(mapaCanales).sort(
     (a, b) => (b.subPorDia ?? 0) - (a.subPorDia ?? 0)
   );
+  // "Canales calientes": menos de 1 año de vida y ordenados por crecimiento diario.
+  // Son los que más sirven de referencia, porque crecen por formato y no por inercia.
+  const canalesJovenes = canales.filter((c) => c.diasCanal <= DIAS_CANAL_JOVEN).slice(0, 20);
 
   // --- Sugerencias ---
   const sugerencias: string[] = [];
@@ -393,6 +401,7 @@ export function analizarVideos(
     total: videos.length,
     periodoDias,
     canales,
+    canalesJovenes,
     destacados: destacados.map(aVideo),
     top: top.map(aVideo),
     palabrasTitulo,

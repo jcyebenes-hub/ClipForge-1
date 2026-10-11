@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Radar, Loader2, AlertTriangle, Search, Copy, Check, TrendingUp, Clock, CalendarClock } from 'lucide-react';
+import { Radar, Loader2, AlertTriangle, Search, Copy, Check, TrendingUp, Clock, CalendarClock, Flame } from 'lucide-react';
 import { grado, type NombreMetrica } from '../../../../lib/analisisYoutube';
 
 const gradoLabel = (m: NombreMetrica, v: number | null) => grado(m, v);
@@ -19,7 +19,9 @@ interface Props {
 }
 
 const CompetenciaPage: React.FC<Props> = () => {
+  const [modo, setModo] = useState<'canales' | 'clave'>('canales');
   const [canales, setCanales] = useState('');
+  const [palabraClave, setPalabraClave] = useState('');
   const [dias, setDias] = useState(90);
   const [soloShorts, setSoloShorts] = useState(true);
   const [orden, setOrden] = useState<'contribucion' | 'rendimiento'>('contribucion');
@@ -38,18 +40,26 @@ const CompetenciaPage: React.FC<Props> = () => {
 
   const analizar = async () => {
     const lista = canales.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
-    if (!lista.length) {
+    if (modo === 'canales' && !lista.length) {
       setError('Escribe al menos un canal (@usuario o URL de YouTube).');
+      return;
+    }
+    if (modo === 'clave' && !palabraClave.trim()) {
+      setError('Escribe una palabra clave (p. ej. «minecraft», «recetas fáciles»).');
       return;
     }
     setCargando(true);
     setError(null);
     setInforme(null);
     try {
-      const res = await fetch('/api/competencia', {
+      const res = await fetch(modo === 'clave' ? '/api/tendencias' : '/api/competencia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ canales: lista, dias, soloShorts, orden }),
+        body: JSON.stringify(
+          modo === 'clave'
+            ? { palabraClave: palabraClave.trim(), dias, orden }
+            : { canales: lista, dias, soloShorts, orden }
+        ),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -82,6 +92,38 @@ const CompetenciaPage: React.FC<Props> = () => {
 
         {/* Formulario */}
         <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 space-y-4">
+          <div className="flex gap-1 rounded-xl bg-slate-900/70 border border-slate-700 p-1 w-fit">
+            {([
+              ['canales', 'Canales concretos'],
+              ['clave', 'Descubrir por tema'],
+            ] as const).map(([valor, etiqueta]) => (
+              <button
+                key={valor}
+                onClick={() => setModo(valor)}
+                className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+                  modo === valor ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
+
+          {modo === 'clave' ? (
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tema a explorar</span>
+              <input
+                value={palabraClave}
+                onChange={(e) => setPalabraClave(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && analizar()}
+                placeholder="minecraft, recetas fáciles, finanzas personales…"
+                className="mt-1.5 w-full rounded-xl bg-slate-900/70 border border-slate-700 px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              />
+              <span className="text-[11px] text-slate-500">
+                Busca los Shorts más vistos de ese tema (España, español). Cuesta 100 unidades de cuota: ~100 búsquedas/día.
+              </span>
+            </label>
+          ) : (
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Canales a analizar</span>
             <textarea
@@ -93,6 +135,7 @@ const CompetenciaPage: React.FC<Props> = () => {
             />
             <span className="text-[11px] text-slate-500">Uno por línea (o separados por comas). Máximo 5.</span>
           </label>
+          )}
 
           <div className="flex flex-wrap items-end gap-3">
             <label className="block">
@@ -119,6 +162,7 @@ const CompetenciaPage: React.FC<Props> = () => {
               </select>
             </label>
 
+            {modo === 'canales' && (
             <label className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2.5 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -128,6 +172,7 @@ const CompetenciaPage: React.FC<Props> = () => {
               />
               <span className="text-sm text-slate-200">Solo Shorts <span className="text-slate-500">(≤3 min)</span></span>
             </label>
+            )}
 
             <button
               onClick={analizar}
@@ -135,7 +180,7 @@ const CompetenciaPage: React.FC<Props> = () => {
               className="ml-auto inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               {cargando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-              {cargando ? 'Analizando…' : 'Analizar canales'}
+              {cargando ? 'Analizando…' : modo === 'clave' ? 'Descubrir tendencias' : 'Analizar canales'}
             </button>
           </div>
         </div>
@@ -176,6 +221,36 @@ const CompetenciaPage: React.FC<Props> = () => {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* Canales calientes: menos de 1 año, por crecimiento */}
+            {informe.canalesJovenes.length > 0 && (
+              <div className="rounded-2xl border border-orange-500/30 bg-orange-500/5 p-5 overflow-x-auto">
+                <h2 className="text-sm font-bold text-orange-300 mb-1 flex items-center gap-1.5">
+                  <Flame className="w-4 h-4" /> Canales que suben (menos de 1 año)
+                </h2>
+                <p className="text-[11px] text-slate-400 mb-3">
+                  Estos crecen por formato, no por inercia: son tus mejores referencias.
+                </p>
+                <div className="space-y-1.5">
+                  {informe.canalesJovenes.slice(0, 8).map((c) => (
+                    <a
+                      key={c.id}
+                      href={`https://youtube.com/channel/${c.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-xs hover:border-orange-500/40 transition"
+                    >
+                      <span className="font-semibold text-slate-100">{c.nombre}</span>
+                      <span className="text-slate-400">{c.subs.toLocaleString('es-ES')} subs</span>
+                      <span className="rounded border border-orange-500/40 bg-orange-500/10 px-1.5 py-0.5 font-semibold text-orange-200">
+                        +{c.subPorDia?.toLocaleString('es-ES')}/día
+                      </span>
+                      <span className="text-slate-500">{c.diasCanal} días de vida</span>
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
 

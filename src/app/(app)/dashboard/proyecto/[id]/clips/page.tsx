@@ -37,6 +37,7 @@ import {
   Layers,
   Columns2,
   Clapperboard,
+  Wand2,
 } from 'lucide-react';
 import { useAuth } from '../../../../../../context/AuthContext';
 import { useYouTube } from '../../../../../../context/YouTubeAuthContext';
@@ -69,6 +70,12 @@ import { ApoyarClipForge } from '../../../../../../components/nuevo/ApoyarClipFo
 import { AsistenteShort } from '../../../../../../components/nuevo/AsistenteShort';
 import { EspacioDeTrabajoShort } from '../../../../../../components/nuevo/EspacioDeTrabajoShort';
 import { VOLUMEN_POR_DEFECTO } from '../../../../../../lib/musicaFondo';
+import {
+  planificarRevision,
+  aplicarRevision,
+  type AjustesClip,
+  type PlanRevision,
+} from '../../../../../../lib/revision';
 import { firmarUrlVideo, rutaDesdeUrlPublica } from '../../../../../../lib/storageUrl';
 
 /** Lee los modos de encuadre guardados para este proyecto (si existen). */
@@ -146,6 +153,50 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
   const [fondoDesenfocado, setFondoDesenfocado] = useState<boolean>(() => leerEncuadreGuardado(effectiveId).fondo);
   const [modoSplit, setModoSplit] = useState<boolean>(() => leerEncuadreGuardado(effectiveId).split);
   const [ritmoRapido, setRitmoRapido] = useState<boolean>(true);
+  // Velocidad ajustable: la revisión en lenguaje natural puede cambiarla («a 1.5»).
+  const [velocidad, setVelocidad] = useState<number>(1.3);
+  const [estiloOverride, setEstiloOverride] = useState<SubtitleStylePreset | null>(null);
+  const [ganchoOverride, setGanchoOverride] = useState<string | null>(null);
+  const [instruccionRevision, setInstruccionRevision] = useState<string>('');
+  const [planRevision, setPlanRevision] = useState<PlanRevision | null>(null);
+
+  /** Ejemplos clicables del revisor en lenguaje natural. */
+  const EJEMPLOS_REVISION = [
+    'más rápido',
+    'un poco más rápido',
+    'velocidad 1.5',
+    'velocidad normal',
+    'quita los silencios',
+    'quita el título',
+    'subtítulos neón',
+    'pon el fondo',
+  ];
+
+  /** Traduce la frase escrita a cambios sobre los ajustes reales del clip. */
+  const aplicarInstruccion = () => {
+    const actual: AjustesClip = {
+      fondo: fondoDesenfocado,
+      split: modoSplit,
+      ritmoRapido,
+      velocidad,
+      tituloArriba,
+      quitarSilencios,
+      estiloSubtitulos: estiloOverride ?? 'moderno',
+      gancho: ganchoOverride ?? '',
+    };
+    const plan = planificarRevision(instruccionRevision, actual);
+    setPlanRevision(plan);
+    if (!plan.cambios.length) return;
+    const nuevo = aplicarRevision(actual, plan);
+    setFondoDesenfocado(nuevo.fondo);
+    setModoSplit(nuevo.split);
+    setRitmoRapido(nuevo.ritmoRapido);
+    setVelocidad(nuevo.velocidad);
+    setTituloArriba(nuevo.tituloArriba);
+    setQuitarSilencios(nuevo.quitarSilencios);
+    if (nuevo.estiloSubtitulos !== actual.estiloSubtitulos) setEstiloOverride(nuevo.estiloSubtitulos);
+    if (nuevo.gancho !== actual.gancho) setGanchoOverride(nuevo.gancho);
+  };
   const [tituloArriba, setTituloArriba] = useState<boolean>(true);
   const [quitarSilencios, setQuitarSilencios] = useState<boolean>(false);
   const [clipEnFocoId, setClipEnFocoId] = useState<string | null>(null);
@@ -1059,11 +1110,11 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
     overrideStyle?: SubtitleStylePreset,
     overrideHookPhrase?: string
   ) => {
-    const selectedStyle = overrideStyle || clip.estilo_subtitulos || 'moderno';
+    const selectedStyle = overrideStyle || estiloOverride || clip.estilo_subtitulos || 'moderno';
     const selectedEnfoque = clip.enfoque || 'rostro';
     const hookTextToBurn = overrideHookPhrase !== undefined
       ? overrideHookPhrase
-      : (clip.mejor_momento_primera_frase || clip.titulo_hook);
+      : (ganchoOverride ?? (clip.mejor_momento_primera_frase || clip.titulo_hook));
     
     addLog(`Iniciando generación de Short Completo (Vertical 9:16 + Subtítulos [${SUBTITLE_STYLES[selectedStyle]?.label || selectedStyle}] + Hook: "${hookTextToBurn}") para "${clip.titulo_hook}"...`);
 
@@ -1157,11 +1208,11 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           .filter((iv) => iv.e - iv.s > 0.2);
         if (clipped.length > 0) {
           setClipsQueue(prev => prev.map(c => c.id === clip.id ? { ...c, short_etapa_texto: 'Recortando silencios...' } : c));
-          vertBlob = await recortarSilencios(vertBlob, clipped, ritmoRapido ? 1.3 : 1);
+          vertBlob = await recortarSilencios(vertBlob, clipped, ritmoRapido ? velocidad : 1);
         }
       } else if (ritmoRapido) {
-        setClipsQueue(prev => prev.map(c => c.id === clip.id ? { ...c, short_etapa_texto: 'Aplicando ritmo 1.3×...' } : c));
-        vertBlob = await aplicarVelocidad(vertBlob, 1.3);
+        setClipsQueue(prev => prev.map(c => c.id === clip.id ? { ...c, short_etapa_texto: `Aplicando ritmo ${velocidad}×...` } : c));
+        vertBlob = await aplicarVelocidad(vertBlob, velocidad);
       }
 
       // 3. Burn ASS subtitles using FFmpeg WASM (with initial hook subtitle in 0-1.5s and watermark check)
@@ -1558,10 +1609,10 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
                 ? 'bg-amber-950 text-amber-300 border-amber-700'
                 : 'bg-[#121222] text-slate-400 border-purple-900/40 hover:bg-[#1a1a36]'
             }`}
-            title="Acelera elShort a 1.3× (ritmo ágil, conserva el tono): la receta de los Shorts que funcionan"
+            title={`Acelera el Short (ritmo ágil, conserva el tono). Ahora: ${velocidad}×`}
           >
             <Gauge className="w-3.5 h-3.5" />
-            Ritmo 1.3×: {ritmoRapido ? 'sí' : 'no'}
+            Ritmo {velocidad}×: {ritmoRapido ? 'sí' : 'no'}
           </button>
         </div>
 
@@ -1595,6 +1646,90 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
             <Scissors className="w-3.5 h-3.5" />
             Quitar silencios: {quitarSilencios ? 'sí' : 'no'}
           </button>
+        </div>
+
+        {/* Revisión en lenguaje natural (Fase 3) */}
+        <div className="rounded-2xl border border-purple-900/40 bg-[#121222] p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Wand2 className="w-4 h-4 text-purple-400" />
+            <span className="text-xs font-bold text-white">Revisar con una frase</span>
+          </div>
+          <p className="text-[11px] leading-relaxed text-slate-500 mb-3">
+            Escribe lo que quieras cambiar y se aplicará a los ajustes de arriba antes de generar.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              value={instruccionRevision}
+              onChange={(ev) => setInstruccionRevision(ev.target.value)}
+              onKeyDown={(ev) => {
+                if (ev.key === 'Enter') {
+                  ev.preventDefault();
+                  aplicarInstruccion();
+                }
+              }}
+              placeholder="Ej.: más rápido y quita los silencios"
+              className="flex-1 rounded-xl bg-[#0e0e1a] border border-purple-900/40 px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+            />
+            <button
+              type="button"
+              onClick={aplicarInstruccion}
+              disabled={!instruccionRevision.trim()}
+              className="rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+            >
+              Aplicar
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-2.5">
+            {EJEMPLOS_REVISION.map((ej) => (
+              <button
+                key={ej}
+                type="button"
+                onClick={() => {
+                  setInstruccionRevision(ej);
+                  setPlanRevision(null);
+                }}
+                className="rounded-full border border-purple-900/50 bg-[#0e0e1a] px-2.5 py-1 text-[11px] text-slate-400 hover:text-white hover:border-purple-600 transition cursor-pointer"
+              >
+                {ej}
+              </button>
+            ))}
+          </div>
+
+          {planRevision && (
+            <div className="mt-3 space-y-1.5">
+              {planRevision.cambios.map((c, i) => (
+                <div key={i} className="flex items-center gap-2 text-[11px]">
+                  <span className="text-emerald-400">✓</span>
+                  <span className="text-slate-300">{c.etiqueta}</span>
+                  <span className="text-slate-600">
+                    {String(c.anterior)} → <span className="text-emerald-300 font-semibold">{String(c.nuevo)}</span>
+                  </span>
+                </div>
+              ))}
+              {planRevision.yaEstaba.map((y, i) => (
+                <div key={i} className="text-[11px] text-slate-500">
+                  · {y}
+                </div>
+              ))}
+              {planRevision.noSoportado.map((n, i) => (
+                <div key={i} className="text-[11px] text-amber-300/90 leading-relaxed">
+                  ⚠ {n}
+                </div>
+              ))}
+              {ganchoOverride && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGanchoOverride(null);
+                    setPlanRevision(null);
+                  }}
+                  className="text-[11px] text-slate-500 underline hover:text-slate-300 cursor-pointer"
+                >
+                  Quitar el gancho personalizado («{ganchoOverride}»)
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Los paneles de ingeniería quedan ocultos por defecto */}

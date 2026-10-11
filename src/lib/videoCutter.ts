@@ -23,6 +23,47 @@ let isLoaded = false;
  * Aplica una velocidad global (p. ej. 1.3) re-codificando en un paso aislado.
  * setpts (vídeo) + atempo (audio, conserva tono) mantienen la sincronía A/V.
  */
+/**
+ * Recorta los silencios dejando solo los intervalos donde se habla (trim/concat),
+ * y aplica velocidad en el mismo paso. Mantiene sincronía A/V porque corta vídeo
+ * y audio por los mismos intervalos.
+ */
+export async function recortarSilencios(
+  videoBlob: Blob,
+  intervals: { s: number; e: number }[],
+  velocidad = 1
+): Promise<Blob> {
+  if (!intervals || intervals.length === 0) return videoBlob;
+  const ffmpeg = await getLoadedFFmpeg();
+  const inName = 'rec_in.mp4';
+  const outName = 'rec_out.mp4';
+  await ffmpeg.writeFile(inName, new Uint8Array(await videoBlob.arrayBuffer()));
+
+  const parts: string[] = [];
+  const concatIn: string[] = [];
+  intervals.forEach((iv, i) => {
+    parts.push(`[0:v]trim=start=${iv.s}:end=${iv.e},setpts=(PTS-STARTPTS)/${velocidad}[v${i}]`);
+    parts.push(`[0:a]atrim=start=${iv.s}:end=${iv.e},asetpts=PTS-STARTPTS,atempo=${velocidad}[a${i}]`);
+    concatIn.push(`[v${i}][a${i}]`);
+  });
+  const filter =
+    parts.join(';') +
+    `;${concatIn.join('')}concat=n=${intervals.length}:v=1:a=1[outv][outa]`;
+
+  const code = await ffmpeg.exec([
+    '-i', inName,
+    '-filter_complex', filter,
+    '-map', '[outv]', '-map', '[outa]',
+    '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+    '-c:a', 'aac',
+    outName,
+  ]);
+  try { await ffmpeg.deleteFile(inName); await ffmpeg.deleteFile(outName); } catch {}
+  if (code !== 0) throw new Error('No se pudo recortar los silencios.');
+  const out = (await ffmpeg.readFile(outName)) as Uint8Array;
+  return new Blob([out.buffer], { type: 'video/mp4' });
+}
+
 export async function aplicarVelocidad(videoBlob: Blob, velocidad: number): Promise<Blob> {
   const ffmpeg = await getLoadedFFmpeg();
   const inName = 'ritmo_in.mp4';

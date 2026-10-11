@@ -46,7 +46,7 @@ import { supabase } from '../../../../../../lib/supabase/client';
 import type { Proyecto, Clip } from '../../../../../../lib/supabase/types';
 import { cutVideoSegment, CutProgressCallback } from '../../../../../../lib/videoCutter';
 import { generarShortVertical, VerticalCropProgress, TipoEnfoque, detectarRostros, detectarMovimiento, sugerirEncuadre } from '../../../../../../lib/encuadre';
-import { aplicarVelocidad } from '../../../../../../lib/videoCutter';
+import { aplicarVelocidad, recortarSilencios } from '../../../../../../lib/videoCutter';
 import {
   SubtitleStylePreset,
   SUBTITLE_STYLES,
@@ -147,6 +147,7 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
   const [modoSplit, setModoSplit] = useState<boolean>(() => leerEncuadreGuardado(effectiveId).split);
   const [ritmoRapido, setRitmoRapido] = useState<boolean>(true);
   const [tituloArriba, setTituloArriba] = useState<boolean>(true);
+  const [quitarSilencios, setQuitarSilencios] = useState<boolean>(false);
   const [clipEnFocoId, setClipEnFocoId] = useState<string | null>(null);
 
   // Recuerda los modos de encuadre por proyecto para la próxima visita.
@@ -1133,14 +1134,35 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           segmentDuration: 0.5, // segmentos más cortos: el crop sigue la cara con saltos más pequeños y frecuentes (menos "cabezazos")
         });
         vertBlob = vertRes.blob;
-        if (ritmoRapido) {
-          setClipsQueue(prev => prev.map(c => c.id === clip.id ? { ...c, short_etapa_texto: 'Aplicando ritmo 1.3×...' } : c));
-          vertBlob = await aplicarVelocidad(vertBlob, 1.3);
-        }
       }
 
       // 2. Get words for this clip
       const words = getWordsForClip(clip);
+
+      // Fase 1 (incremento 2): recorte de silencios + ritmo, manteniendo sincronía.
+      if (quitarSilencios && words.length > 0) {
+        const finClip = clip.fin_seg || clip.inicio_seg + clip.duracion_seg;
+        const rel = words
+          .map((w) => ({ s: Math.max(0, w.start - clip.inicio_seg), e: Math.max(0.1, w.end - clip.inicio_seg) }))
+          .sort((a, b) => a.s - b.s);
+        const intervals: { s: number; e: number }[] = [];
+        const MAX_GAP = 0.35;
+        for (const w of rel) {
+          const last = intervals[intervals.length - 1];
+          if (last && w.s - last.e <= MAX_GAP) last.e = Math.max(last.e, w.e);
+          else intervals.push({ s: w.s, e: w.e });
+        }
+        const clipped = intervals
+          .map((iv) => ({ s: Math.max(0, iv.s), e: Math.min(finClip - clip.inicio_seg, iv.e) }))
+          .filter((iv) => iv.e - iv.s > 0.2);
+        if (clipped.length > 0) {
+          setClipsQueue(prev => prev.map(c => c.id === clip.id ? { ...c, short_etapa_texto: 'Recortando silencios...' } : c));
+          vertBlob = await recortarSilencios(vertBlob, clipped, ritmoRapido ? 1.3 : 1);
+        }
+      } else if (ritmoRapido) {
+        setClipsQueue(prev => prev.map(c => c.id === clip.id ? { ...c, short_etapa_texto: 'Aplicando ritmo 1.3×...' } : c));
+        vertBlob = await aplicarVelocidad(vertBlob, 1.3);
+      }
 
       // 3. Burn ASS subtitles using FFmpeg WASM (with initial hook subtitle in 0-1.5s and watermark check)
       const isFreePlan = !profile?.plan || profile.plan === 'gratis';
@@ -1556,6 +1578,22 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
           >
             <Type className="w-3.5 h-3.5" />
             Título arriba: {tituloArriba ? 'sí' : 'no'}
+          </button>
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setQuitarSilencios((v) => !v)}
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer ${
+              quitarSilencios
+                ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                : 'bg-[#121222] text-slate-400 border-purple-900/40 hover:bg-[#1a1a36]'
+            }`}
+            title="Elimina las pausas largas (>0.35s) dejando solo donde se habla: más ritmo y retención"
+          >
+            <Scissors className="w-3.5 h-3.5" />
+            Quitar silencios: {quitarSilencios ? 'sí' : 'no'}
           </button>
         </div>
 

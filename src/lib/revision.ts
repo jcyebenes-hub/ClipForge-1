@@ -282,3 +282,130 @@ export function aplicarRevision(actual: AjustesClip, plan: PlanRevision): Ajuste
   }
   return nuevo;
 }
+
+// ---------------------------------------------------------------------------
+// Respaldo con IA: saneado del plan que devuelve el modelo
+// ---------------------------------------------------------------------------
+
+const CLAVES_BOOLEANAS: (keyof AjustesClip)[] = [
+  'fondo',
+  'split',
+  'ritmoRapido',
+  'tituloArriba',
+  'quitarSilencios',
+];
+
+const CLAVES_VALIDAS: (keyof AjustesClip)[] = [
+  ...CLAVES_BOOLEANAS,
+  'velocidad',
+  'estiloSubtitulos',
+  'gancho',
+];
+
+function aBooleano(v: unknown): boolean | null {
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase();
+    if (['true', 'si', 'sí', 'on', 'activado', '1'].includes(s)) return true;
+    if (['false', 'no', 'off', 'desactivado', '0'].includes(s)) return false;
+  }
+  return null;
+}
+
+/**
+ * Valida y repara el plan que devuelve el modelo de IA.
+ *
+ * NUNCA se aplica la salida del modelo tal cual: una clave inventada, un estilo que
+ * no existe o una velocidad de 50 romperían el render. Lo que no encaja se descarta
+ * y se explica en `noSoportado`.
+ */
+export function sanearPlanLLM(crudo: unknown, actual: AjustesClip): PlanRevision {
+  const cambios: Cambio[] = [];
+  const yaEstaba: string[] = [];
+  const noSoportado: string[] = [];
+  const estado: AjustesClip = { ...actual };
+  const vistas = new Set<string>();
+
+  const objeto = (crudo && typeof crudo === 'object' ? crudo : {}) as Record<string, unknown>;
+  const lista = Array.isArray(objeto.cambios)
+    ? objeto.cambios
+    : Array.isArray(crudo)
+      ? (crudo as unknown[])
+      : [];
+
+  for (const item of lista) {
+    if (!item || typeof item !== 'object') continue;
+    const c = item as Record<string, unknown>;
+    const clave = String(c.clave ?? c.path ?? '').trim();
+    if (!CLAVES_VALIDAS.includes(clave as keyof AjustesClip)) {
+      if (clave) noSoportado.push(`El ajuste «${clave}» no existe y se ha ignorado.`);
+      continue;
+    }
+    const k = clave as keyof AjustesClip;
+    let nuevo: string | number | boolean | null = null;
+
+    if (CLAVES_BOOLEANAS.includes(k)) {
+      nuevo = aBooleano(c.nuevo ?? c.value ?? c.value_json);
+    } else if (k === 'velocidad') {
+      const n = Number(c.nuevo ?? c.value ?? c.value_json);
+      nuevo = Number.isFinite(n) ? limitar(n) : null;
+    } else if (k === 'estiloSubtitulos') {
+      const v = String(c.nuevo ?? c.value ?? c.value_json ?? '').trim().toLowerCase();
+      nuevo = ESTILOS_VALIDOS.includes(v as EstiloSubtitulos) ? (v as EstiloSubtitulos) : null;
+      if (!nuevo) noSoportado.push(`El estilo «${v}» no existe. Válidos: ${ESTILOS_VALIDOS.join(', ')}.`);
+    } else if (k === 'gancho') {
+      const v = String(c.nuevo ?? c.value ?? c.value_json ?? '').trim().slice(0, 120);
+      nuevo = v.length >= 1 ? v : null;
+    }
+
+    if (nuevo === null) {
+      if (k !== 'estiloSubtitulos') noSoportado.push(`No he podido interpretar el valor de «${ETIQUETAS[k]}».`);
+      continue;
+    }
+    if (estado[k] === nuevo) {
+      yaEstaba.push(`${ETIQUETAS[k]}: ya estaba en ${formatear(nuevo)}`);
+      continue;
+    }
+    if (vistas.has(k)) continue; // si el modelo repite clave, gana la primera
+    vistas.add(k);
+    cambios.push({ clave: k, etiqueta: ETIQUETAS[k], anterior: estado[k], nuevo });
+    (estado as unknown as Record<string, unknown>)[k] = nuevo;
+  }
+
+  // Los "no soportado" que declare el propio modelo se conservan.
+  if (Array.isArray(objeto.noSoportado)) {
+    for (const n of objeto.noSoportado) {
+      const txt = String(n ?? '').trim();
+      if (txt && !noSoportado.includes(txt)) noSoportado.push(txt);
+    }
+  }
+
+  return { cambios, yaEstaba, noSoportado };
+}
+
+/**
+ * Sanea los ajustes que llegan del navegador antes de usarlos como referencia.
+ * Empieza de los valores por defecto y solo sobrescribe lo que tenga el tipo correcto,
+ * así un valor corrupto no puede colarse en la comparación ni en el render.
+ */
+export function sanearAjustes(crudo: unknown): AjustesClip {
+  const base: AjustesClip = ajustesPorDefecto();
+  if (!crudo || typeof crudo !== 'object') return base;
+  const c = crudo as Record<string, unknown>;
+
+  // Tupla literal: con la lista amplia TypeScript reduce el destino a `never`.
+  const clavesBool = ['fondo', 'split', 'ritmoRapido', 'tituloArriba', 'quitarSilencios'] as const;
+  for (const k of clavesBool) {
+    const v = aBooleano(c[k]);
+    if (v !== null) base[k] = v;
+  }
+  const vel = Number(c.velocidad);
+  if (Number.isFinite(vel)) base.velocidad = limitar(vel);
+  const est = String(c.estiloSubtitulos ?? '').trim().toLowerCase();
+  if (ESTILOS_VALIDOS.includes(est as EstiloSubtitulos)) {
+    base.estiloSubtitulos = est as EstiloSubtitulos;
+  }
+  const gan = String(c.gancho ?? '').trim().slice(0, 120);
+  if (gan) base.gancho = gan;
+  return base;
+}

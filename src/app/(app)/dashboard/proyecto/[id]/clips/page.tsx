@@ -159,6 +159,8 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
   const [ganchoOverride, setGanchoOverride] = useState<string | null>(null);
   const [instruccionRevision, setInstruccionRevision] = useState<string>('');
   const [planRevision, setPlanRevision] = useState<PlanRevision | null>(null);
+  const [esperandoIA, setEsperandoIA] = useState<boolean>(false);
+  const [viaIA, setViaIA] = useState<string | null>(null);
 
   /** Ejemplos clicables del revisor en lenguaje natural. */
   const EJEMPLOS_REVISION = [
@@ -172,20 +174,20 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
     'pon el fondo',
   ];
 
-  /** Traduce la frase escrita a cambios sobre los ajustes reales del clip. */
-  const aplicarInstruccion = () => {
-    const actual: AjustesClip = {
-      fondo: fondoDesenfocado,
-      split: modoSplit,
-      ritmoRapido,
-      velocidad,
-      tituloArriba,
-      quitarSilencios,
-      estiloSubtitulos: estiloOverride ?? 'moderno',
-      gancho: ganchoOverride ?? '',
-    };
-    const plan = planificarRevision(instruccionRevision, actual);
-    setPlanRevision(plan);
+  /** Ajustes tal y como están ahora mismo en la pantalla. */
+  const leerAjustesActuales = (): AjustesClip => ({
+    fondo: fondoDesenfocado,
+    split: modoSplit,
+    ritmoRapido,
+    velocidad,
+    tituloArriba,
+    quitarSilencios,
+    estiloSubtitulos: estiloOverride ?? 'moderno',
+    gancho: ganchoOverride ?? '',
+  });
+
+  /** Vuelca un plan sobre los controles de la página. */
+  const volcarPlan = (actual: AjustesClip, plan: PlanRevision) => {
     if (!plan.cambios.length) return;
     const nuevo = aplicarRevision(actual, plan);
     setFondoDesenfocado(nuevo.fondo);
@@ -196,6 +198,56 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
     setQuitarSilencios(nuevo.quitarSilencios);
     if (nuevo.estiloSubtitulos !== actual.estiloSubtitulos) setEstiloOverride(nuevo.estiloSubtitulos);
     if (nuevo.gancho !== actual.gancho) setGanchoOverride(nuevo.gancho);
+  };
+
+  /**
+   * Traduce la frase a cambios sobre los ajustes reales.
+   * Primero el intérprete local (gratis e instantáneo). Si no la reconoce, se pide
+   * respaldo a la IA que ya usa la app; su respuesta se sanea antes de aplicarse.
+   */
+  const aplicarInstruccion = async () => {
+    const texto = instruccionRevision.trim();
+    if (!texto || esperandoIA) return;
+    const actual = leerAjustesActuales();
+    const local = planificarRevision(texto, actual);
+    if (local.cambios.length) {
+      setViaIA(null);
+      setPlanRevision(local);
+      volcarPlan(actual, local);
+      return;
+    }
+    setPlanRevision(local);
+    setEsperandoIA(true);
+    try {
+      const res = await fetch('/api/revision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instruccion: texto, ajustes: actual }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.plan?.cambios?.length) {
+        setViaIA(data.modelo ? `IA (${data.modelo})` : 'IA');
+        setPlanRevision(data.plan);
+        volcarPlan(actual, data.plan);
+      } else {
+        setViaIA(null);
+        setPlanRevision({
+          ...local,
+          noSoportado: [
+            ...local.noSoportado,
+            data.error ?? 'Tampoco con IA he sabido interpretarlo.',
+          ],
+        });
+      }
+    } catch {
+      setViaIA(null);
+      setPlanRevision({
+        ...local,
+        noSoportado: [...local.noSoportado, 'No se pudo contactar con la IA.'],
+      });
+    } finally {
+      setEsperandoIA(false);
+    }
   };
   const [tituloArriba, setTituloArriba] = useState<boolean>(true);
   const [quitarSilencios, setQuitarSilencios] = useState<boolean>(false);
@@ -1673,10 +1725,10 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
             <button
               type="button"
               onClick={aplicarInstruccion}
-              disabled={!instruccionRevision.trim()}
+              disabled={!instruccionRevision.trim() || esperandoIA}
               className="rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
             >
-              Aplicar
+              {esperandoIA ? 'Consultando…' : 'Aplicar'}
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5 mt-2.5">
@@ -1697,6 +1749,11 @@ export default function ClipsProcesadorPage({ proyectoId, onNavigate }: ClipsPro
 
           {planRevision && (
             <div className="mt-3 space-y-1.5">
+              {viaIA && (
+                <div className="text-[11px] text-purple-300/90">
+                  Interpretado con {viaIA}, porque el intérprete local no la reconocía.
+                </div>
+              )}
               {planRevision.cambios.map((c, i) => (
                 <div key={i} className="flex items-center gap-2 text-[11px]">
                   <span className="text-emerald-400">✓</span>

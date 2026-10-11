@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   planificarRevision,
   aplicarRevision,
+  sanearPlanLLM,
+  sanearAjustes,
   ajustesPorDefecto,
   VELOCIDAD_MAX,
   type AjustesClip,
@@ -216,5 +218,109 @@ describe('los 7 estilos reales de subtítulos', () => {
     const p = planificarRevision('este clip tiene mucho humor', base());
     expect(p.cambios).toEqual([]);
     expect(p.noSoportado.length).toBe(1);
+  });
+});
+
+describe('sanearPlanLLM (filtro de seguridad de la salida de la IA)', () => {
+  it('acepta un plan correcto', () => {
+    const p = sanearPlanLLM(
+      { cambios: [{ clave: 'velocidad', nuevo: 1.5 }, { clave: 'tituloArriba', nuevo: false }] },
+      base()
+    );
+    expect(p.cambios).toHaveLength(2);
+    expect(p.cambios[0]).toMatchObject({ clave: 'velocidad', nuevo: 1.5 });
+    expect(p.noSoportado).toEqual([]);
+  });
+
+  it('descarta claves inventadas por el modelo', () => {
+    const p = sanearPlanLLM(
+      { cambios: [{ clave: 'colorFondo', nuevo: '#ff0000' }, { clave: 'musica', nuevo: true }] },
+      base()
+    );
+    expect(p.cambios).toEqual([]);
+    expect(p.noSoportado.length).toBe(2);
+    expect(p.noSoportado.join(' ')).toContain('no existe');
+  });
+
+  it('descarta un estilo de subtítulos inexistente y lista los válidos', () => {
+    const p = sanearPlanLLM({ cambios: [{ clave: 'estiloSubtitulos', nuevo: 'arcoiris' }] }, base());
+    expect(p.cambios).toEqual([]);
+    expect(p.noSoportado.join(' ')).toContain('humor');
+  });
+
+  it('limita la velocidad aunque el modelo pida un disparate', () => {
+    expect(sanearPlanLLM({ cambios: [{ clave: 'velocidad', nuevo: 50 }] }, base()).cambios[0].nuevo).toBe(
+      VELOCIDAD_MAX
+    );
+    expect(sanearPlanLLM({ cambios: [{ clave: 'velocidad', nuevo: 0.1 }] }, base()).cambios[0].nuevo).toBe(1);
+    expect(sanearPlanLLM({ cambios: [{ clave: 'velocidad', nuevo: '1.5' }] }, base()).cambios[0].nuevo).toBe(1.5);
+    expect(sanearPlanLLM({ cambios: [{ clave: 'velocidad', nuevo: 'muchísimo' }] }, base()).cambios).toEqual([]);
+  });
+
+  it('convierte booleanos escritos como texto', () => {
+    expect(sanearPlanLLM({ cambios: [{ clave: 'fondo', nuevo: 'true' }] }, base()).cambios[0].nuevo).toBe(true);
+    expect(sanearPlanLLM({ cambios: [{ clave: 'fondo', nuevo: 'sí' }] }, base()).cambios[0].nuevo).toBe(true);
+    expect(
+      sanearPlanLLM({ cambios: [{ clave: 'fondo', nuevo: 'no' }] }, { ...base(), fondo: true }).cambios[0].nuevo
+    ).toBe(false);
+  });
+
+  it('recorta un gancho demasiado largo', () => {
+    const largo = 'x'.repeat(500);
+    const p = sanearPlanLLM({ cambios: [{ clave: 'gancho', nuevo: largo }] }, base());
+    expect((p.cambios[0].nuevo as string).length).toBe(120);
+  });
+
+  it('avisa si el valor ya era ese y no duplica clave', () => {
+    const p = sanearPlanLLM(
+      {
+        cambios: [
+          { clave: 'quitarSilencios', nuevo: true },
+          { clave: 'quitarSilencios', nuevo: false },
+          { clave: 'tituloArriba', nuevo: true },
+        ],
+      },
+      base()
+    );
+    expect(p.cambios).toHaveLength(1); // quitarSilencios=true; tituloArriba ya era true
+    expect(p.cambios[0].clave).toBe('quitarSilencios');
+    expect(p.yaEstaba.length).toBe(1);
+  });
+
+  it('no revienta con basura y conserva los no-soportados del modelo', () => {
+    expect(sanearPlanLLM(null, base()).cambios).toEqual([]);
+    expect(sanearPlanLLM('hola', base()).cambios).toEqual([]);
+    expect(sanearPlanLLM({ cambios: 'no soy un array' }, base()).cambios).toEqual([]);
+    const p = sanearPlanLLM({ cambios: [], noSoportado: ['No sé cambiar el color'] }, base());
+    expect(p.noSoportado).toContain('No sé cambiar el color');
+  });
+});
+
+describe('sanearAjustes (lo que manda el navegador tampoco se acepta a ciegas)', () => {
+  it('empieza de los valores por defecto ante basura', () => {
+    expect(sanearAjustes(null)).toEqual(ajustesPorDefecto());
+    expect(sanearAjustes('nada')).toEqual(ajustesPorDefecto());
+  });
+
+  it('acepta lo válido y descarta lo inválido', () => {
+    const a = sanearAjustes({
+      fondo: 'sí',
+      velocidad: '1.7',
+      estiloSubtitulos: 'PODCAST',
+      gancho: 'Hola',
+      inventado: 'no existo',
+      ritmoRapido: 12345,
+    });
+    expect(a.fondo).toBe(true);
+    expect(a.velocidad).toBe(1.7);
+    expect(a.estiloSubtitulos).toBe('podcast');
+    expect(a.gancho).toBe('Hola');
+    expect('inventado' in a).toBe(false);
+    expect(a.ritmoRapido).toBe(ajustesPorDefecto().ritmoRapido); // 12345 no es booleano -> se ignora
+  });
+
+  it('limita una velocidad fuera de rango', () => {
+    expect(sanearAjustes({ velocidad: 99 }).velocidad).toBe(VELOCIDAD_MAX);
+    expect(sanearAjustes({ velocidad: -3 }).velocidad).toBe(1);
   });
 });

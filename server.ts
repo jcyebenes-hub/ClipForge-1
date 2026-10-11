@@ -44,6 +44,7 @@ import { GET as cronPublicarGET } from './src/app/api/cron/publicar/route';
 import { GET as cronVigilarGET } from './src/app/api/cron/vigilar-canal/route';
 import { POST as competenciaPOST } from './src/app/api/competencia/route';
 import { POST as tendenciasPOST } from './src/app/api/tendencias/route';
+import { POST as revisionPOST } from './src/app/api/revision/route';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -148,6 +149,7 @@ app.get(`${api}/cron/publicar`, adapt(cronPublicarGET));
 app.get(`${api}/cron/vigilar-canal`, adapt(cronVigilarGET));
 app.post(`${api}/competencia`, adapt(competenciaPOST));
 app.post(`${api}/tendencias`, adapt(tendenciasPOST));
+app.post(`${api}/revision`, adapt(revisionPOST));
 
 // Ruta de salud (para Render / monitors)
 app.get('/health', (_req, res) => {

@@ -74,6 +74,25 @@ describe('analisisYoutube', () => {
     expect(palabras).not.toContain('1000000');
   });
 
+  it('prioriza palabras usadas por los ganadores sobre las más frecuentes', () => {
+    // "cocina" se repite mucho en el conjunto pero no en los 2 mejores (25% de 8);
+    // "ganar" sí aparece en los 2 mejores → la lista debe mostrar solo las del top.
+    const videos = [
+      vid('1', 'Cómo ganar en un día', 1, 30, 900_000),
+      vid('2', 'Truco para ganar siempre', 1, 30, 800_000),
+      vid('3', 'Cocina fácil número uno', 2, 30, 700_000),
+      vid('4', 'Cocina fácil número dos', 3, 30, 600_000),
+      vid('5', 'Cocina fácil número tres', 4, 30, 500_000),
+      vid('6', 'Cocina fácil número cuatro', 5, 30, 400_000),
+      vid('7', 'Cocina fácil número cinco', 6, 30, 300_000),
+      vid('8', 'Cocina fácil número seis', 7, 30, 200_000),
+    ];
+    const inf = analizarVideos(videos, { ahora: AHORA });
+    expect(inf.palabrasTitulo.map((p) => p.palabra)).toContain('ganar');
+    expect(inf.palabrasTitulo.every((p) => p.enTop >= 1)).toBe(true);
+    expect(inf.palabrasTitulo.map((p) => p.palabra)).not.toContain('cocina');
+  });
+
   it('calcula cadencia semanal de publicación', () => {
     const videos = [
       vid('1', 'Top uno', 1, 20, 900_000),

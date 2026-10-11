@@ -66,7 +66,12 @@ const STOPWORDS = new Set(
   ('a al los las el la de del que y o un una unos unas por para con sin en su sus se lo al ' +
     'como más pero sus es son fue ser está están este esta estos estas ese esa eso mi tu ' +
     'the a an of to and or in on for with how why what is are was were this that these those ' +
-    'i you he she it we they my your our their at from by about into over after before not no')
+    'i you he she it we they my your our their at from by about into over after before not no ' +
+    'can could would should will shall may might must does did have has had been being also ' +
+    'just even very really than then them there here when where which who whose because while ' +
+    'until upon under between during against through without within around across behind ' +
+    'como mas pero sus este esta ese esa eso mi tu su le les ya ni si hay va van da dar ser ' +
+    'hacer hace hacen tiene tienen estaba estaba muy poco cada otro otra otros otras')
     .split(/\s+/)
 );
 
@@ -138,16 +143,25 @@ export function analizarVideos(
       if (c) c.enTop += 1;
     }
   }
-  const palabrasTitulo: PalabraTitulo[] = [...contador.entries()]
+  const todasPalabras = [...contador.entries()]
     .map(([palabra, c]) => ({
       palabra,
       veces: c.veces,
       enTop: c.enTop,
       ratioTop: top.length ? c.enTop / top.length : 0,
     }))
-    .filter((p) => p.veces >= 2)
-    .sort((a, b) => b.enTop - a.enTop || b.veces - a.veces || a.palabra.localeCompare(b.palabra))
-    .slice(0, 15);
+    .filter((p) => p.veces >= 2);
+  // La lista debe servir para escribir títulos: si alguna palabra la usa el grupo
+  // ganador, se muestran solo esas. Si ninguna se repite en el top (canales con
+  // pocos Shorts), se muestra lo más frecuente del conjunto como referencia.
+  const enElTop = todasPalabras
+    .filter((p) => p.enTop >= 1)
+    .sort((a, b) => b.enTop - a.enTop || b.veces - a.veces || a.palabra.localeCompare(b.palabra));
+  const palabrasTitulo: PalabraTitulo[] = (
+    enElTop.length
+      ? enElTop
+      : [...todasPalabras].sort((a, b) => b.veces - a.veces || a.palabra.localeCompare(b.palabra))
+  ).slice(0, 15);
 
   // Etiquetas.
   const contEtq = new Map<string, number>();

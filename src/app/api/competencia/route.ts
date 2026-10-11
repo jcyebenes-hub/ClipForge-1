@@ -128,6 +128,11 @@ export async function POST(req: Request) {
         ? body.canales.split(/[,\n]/).map((s) => s.trim()).filter(Boolean).slice(0, 5)
         : [];
     const dias = Math.min(180, Math.max(7, Number(body.dias) || 90));
+    // Solo Shorts por defecto: sin este filtro entran vídeos de 20-60 min y
+    // contaminan el ranking (los largos acumulan vistas y siempre ganan).
+    // YouTube admite Shorts de hasta 3 minutos, así que ese es el umbral.
+    const soloShorts = body.soloShorts !== false;
+    const MAX_SHORT_SEG = 180;
     if (!canales.length) return Response.json({ error: 'Indica al menos un canal (@handle o URL).' }, { status: 400 });
 
     const todos: YTVideo[] = [];
@@ -139,7 +144,8 @@ export async function POST(req: Request) {
           errores.push(`No se encontró el canal «${c}».`);
           continue;
         }
-        todos.push(...(await videosDelCanal(res.id, res.nombre, dias, key)));
+        const vids = await videosDelCanal(res.id, res.nombre, dias, key);
+        todos.push(...(soloShorts ? vids.filter((v) => v.duracionSeg > 0 && v.duracionSeg <= MAX_SHORT_SEG) : vids));
       } catch (e: any) {
         errores.push(`«${c}»: ${e?.message ?? 'error'}`);
       }
@@ -147,7 +153,13 @@ export async function POST(req: Request) {
 
     if (!todos.length) {
       return Response.json(
-        { error: 'No se encontraron vídeos en el periodo para esos canales.', errores, informe: null },
+        {
+          error: soloShorts
+            ? 'No se encontraron Shorts (≤3 min) en ese periodo para esos canales. Prueba con más días o desactiva «Solo Shorts».'
+            : 'No se encontraron vídeos en el periodo para esos canales.',
+          errores,
+          informe: null,
+        },
         { status: 404 }
       );
     }

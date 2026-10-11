@@ -32,6 +32,16 @@ export interface InformeAnalisis {
   total: number;
   periodoDias: number;
   canales: string[];
+  destacados: Array<{
+    id: string;
+    titulo: string;
+    vistas: number;
+    vistasPorDia: number;
+    duracionSeg: number;
+    likes: number;
+    comentarios: number;
+    canal?: string;
+  }>;
   top: Array<{
     id: string;
     titulo: string;
@@ -81,7 +91,7 @@ function tokenizar(texto: string): string[] {
     .replace(/[\u0300-\u036f]/g, '')      // quita tildes
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
-    .filter((w) => w.length >= 3 && !STOPWORDS.has(w));
+    .filter((w) => w.length >= 3 && !STOPWORDS.has(w) && !/^\d+$/.test(w));
 }
 
 function mediana(nums: number[]): number {
@@ -103,8 +113,15 @@ export function analizarVideos(
   const conVel = videos.map((v) => ({ v, vel: velocidadVideo(v, ahora) }));
   conVel.sort((a, b) => b.vel - a.vel);
 
-  const top = conVel.slice(0, topN);
-  const resto = conVel.slice(topN);
+  // Dos grupos distintos:
+  //  - destacados: los mejores para MOSTRAR (hasta topN).
+  //  - top: el grupo de ANÁLISIS (~25% del total) con el que se comparan patrones.
+  //    Usar el 25% evita que, con pocos vídeos, el "resto" quede vacío y la
+  //    comparación top-vs-resto no signifique nada.
+  const destacados = conVel.slice(0, topN);
+  const tamTop = Math.max(1, Math.min(topN, Math.ceil(videos.length * 0.25)));
+  const top = conVel.slice(0, tamTop);
+  const resto = conVel.slice(tamTop);
 
   // Palabras de título: frecuencia global (veces) y adopción en el top (enTop).
   const contador = new Map<string, { veces: number; enTop: number }>();
@@ -187,7 +204,7 @@ export function analizarVideos(
   else if (videos.length)
     sugerencias.push('Publican poco: hay hueco si tú mantienes una cadencia mayor.');
 
-  const masVisto = top[0];
+  const masVisto = destacados[0];
   if (masVisto)
     sugerencias.push(
       `Tu mejor referencia reciente: «${masVisto.v.titulo.slice(0, 70)}» con ${masVisto.v.vistas.toLocaleString('es-ES')} vistas.`
@@ -197,6 +214,16 @@ export function analizarVideos(
     total: videos.length,
     periodoDias,
     canales,
+    destacados: destacados.map((t) => ({
+      id: t.v.id,
+      titulo: t.v.titulo,
+      vistas: t.v.vistas,
+      vistasPorDia: Math.round(t.vel),
+      duracionSeg: t.v.duracionSeg,
+      likes: t.v.likes,
+      comentarios: t.v.comentarios,
+      canal: t.v.canal,
+    })),
     top: top.map((t) => ({
       id: t.v.id,
       titulo: t.v.titulo,

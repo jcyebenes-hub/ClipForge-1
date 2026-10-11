@@ -9,6 +9,7 @@ interface Props {
 const CompetenciaPage: React.FC<Props> = () => {
   const [canales, setCanales] = useState('');
   const [dias, setDias] = useState(90);
+  const [soloShorts, setSoloShorts] = useState(true);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [informe, setInforme] = useState<InformeAnalisis | null>(null);
@@ -35,7 +36,7 @@ const CompetenciaPage: React.FC<Props> = () => {
       const res = await fetch('/api/competencia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ canales: lista, dias }),
+        body: JSON.stringify({ canales: lista, dias, soloShorts }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -93,6 +94,16 @@ const CompetenciaPage: React.FC<Props> = () => {
                 <option value={90}>Últimos 90 días</option>
               </select>
             </label>
+            <label className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={soloShorts}
+                onChange={(e) => setSoloShorts(e.target.checked)}
+                className="w-4 h-4 accent-emerald-500"
+              />
+              <span className="text-sm text-slate-200">Solo Shorts <span className="text-slate-500">(≤3 min)</span></span>
+            </label>
+
             <button
               onClick={analizar}
               disabled={cargando}
@@ -163,7 +174,7 @@ const CompetenciaPage: React.FC<Props> = () => {
             <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
               <h2 className="text-sm font-bold text-slate-200 mb-3">Los que más rinden (por vistas/día)</h2>
               <div className="space-y-2">
-                {informe.top.map((v) => (
+                {informe.destacados.map((v) => (
                   <div key={v.id} className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3.5 py-2.5">
                     <div className="min-w-0 flex-1">
                       <a

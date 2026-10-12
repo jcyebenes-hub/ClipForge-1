@@ -1241,6 +1241,13 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     }
   };
 
+  /**
+   * Descargador externo. Está en una constante porque se usa en dos sitios: el
+   * modal de subir el vídeo original y el aviso de que YouTube bloquea los
+   * subtítulos. Si un día cambia, se cambia una vez.
+   */
+  const DESCARGADOR_YT = 'https://www.ytultra.com/es/youtube-video-downloader/';
+
   const marcarEnlaceCopiado = () => {
     setEnlaceCopiado(true);
     setTimeout(() => setEnlaceCopiado(false), 2500);
@@ -1823,10 +1830,45 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                           <span>Copiar enlace</span>
                         </button>
                       </div>
-                      <p className="mt-2.5 text-[11px] leading-relaxed text-slate-500">
-                        Paso 2 · Descárgalo con la herramienta que uses habitualmente y súbelo
-                        con el botón de aquí abajo.
-                      </p>
+                      <div className="mt-4 border-t border-slate-700/50 pt-3.5">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+                          Paso 2 · Ábrelo en el descargador y baja el MP4
+                        </p>
+                        <button
+                          onClick={() => abrirDescargador(DESCARGADOR_YT)}
+                          className="mt-2.5 inline-flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-cyan-700/50 bg-[#0e0e1c] px-4 py-3 text-sm font-bold text-cyan-100 transition-all hover:border-cyan-500/60 hover:bg-[#15152a] sm:w-auto"
+                        >
+                          <span>Abrir descargador (copia el enlace solo)</span>
+                          <ExternalLink className="h-4 w-4 shrink-0 text-cyan-300" />
+                        </button>
+                        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+                          {esMovil() ? (
+                            <>
+                              En la página que se abre,{' '}
+                              <strong className="text-slate-200">mantén pulsado y elige Pegar</strong>.
+                              Pulsa <strong className="text-slate-200">Download</strong> y escoge MP4.
+                            </>
+                          ) : (
+                            <>
+                              En la página que se abre,{' '}
+                              <strong className="text-slate-200">pega con Ctrl+V</strong> y pulsa{' '}
+                              <strong className="text-slate-200">Download</strong>. Escoge MP4.
+                            </>
+                          )}
+                        </p>
+                        <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                          ¿No funciona? Prueba con{' '}
+                          <a
+                            href="https://cobalt.tools/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-cyan-300 hover:underline"
+                          >
+                            cobalt.tools
+                          </a>
+                          : mismo procedimiento.
+                        </p>
+                      </div>
                     </div>
                   )}
 
@@ -1846,7 +1888,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                       className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-7 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black shadow-lg shadow-amber-900/30 transition-all cursor-pointer"
                     >
                       <Upload className="w-5 h-5" />
-                      <span>Subir archivo y transcribir con Whisper</span>
+                      <span>Paso 3 · Subir el archivo y transcribir</span>
                     </button>
                   </div>
 
@@ -2559,7 +2601,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                   Ábrelo en el descargador y baja el MP4
                 </div>
                 <button
-                  onClick={() => abrirDescargador('https://www.ytultra.com/es/youtube-video-downloader/')}
+                  onClick={() => abrirDescargador(DESCARGADOR_YT)}
                   className="w-full inline-flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl text-sm font-bold bg-[#0e0e1c] border border-purple-700/50 text-purple-100 hover:bg-[#15152a] hover:border-purple-500/60 transition-all cursor-pointer"
                 >
                   <span>Abrir descargador (copia el enlace solo)</span>

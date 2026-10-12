@@ -118,7 +118,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                   }`}
                 >
                   <Radar className="w-4 h-4 text-emerald-400" />
-                  <span>Competencia</span>
+                  <span>Vídeos virales</span>
                 </button>
 
                 <button

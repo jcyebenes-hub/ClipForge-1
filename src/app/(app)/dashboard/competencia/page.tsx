@@ -19,7 +19,7 @@ interface Props {
 }
 
 const CompetenciaPage: React.FC<Props> = () => {
-  const [modo, setModo] = useState<'canales' | 'clave'>('canales');
+  const [modo, setModo] = useState<'canales' | 'clave'>('clave');
   const [canales, setCanales] = useState('');
   const [palabraClave, setPalabraClave] = useState('');
   const [dias, setDias] = useState(90);
@@ -83,7 +83,7 @@ const CompetenciaPage: React.FC<Props> = () => {
             <Radar className="w-6 h-6 text-emerald-400" />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Análisis de competencia</h1>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Vídeos virales de tu nicho</h1>
             <p className="text-sm text-slate-400">
               Estudia qué les funciona a los mejores de tu nicho (últimos {dias} días) y copia su fórmula en tus Shorts.
             </p>
@@ -94,8 +94,8 @@ const CompetenciaPage: React.FC<Props> = () => {
         <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 space-y-4">
           <div className="flex gap-1 rounded-xl bg-slate-900/70 border border-slate-700 p-1 w-fit">
             {([
-              ['canales', 'Canales concretos'],
               ['clave', 'Descubrir por tema'],
+              ['canales', 'Canales concretos'],
             ] as const).map(([valor, etiqueta]) => (
               <button
                 key={valor}

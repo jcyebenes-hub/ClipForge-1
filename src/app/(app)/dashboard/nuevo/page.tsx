@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { leerReceta, borrarReceta, sugerirTitulo, descripcionReceta, enlaceYoutube, type RecetaShort } from '../../../../lib/receta';
 import { 
   Upload, 
   Youtube, 
@@ -57,6 +58,7 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
   const [customTitle, setCustomTitle] = useState('');
+  const [receta, setReceta] = useState<RecetaShort | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatusText, setUploadStatusText] = useState('');
@@ -81,6 +83,19 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
       /* sin localStorage no pasa nada: el usuario pega el enlace a mano */
     }
   }, []);
+  // Receta traída desde «Vídeos virales»: precarga el enlace, el título sugerido
+  // y muestra qué duración y ritmo convienen. No se borra al leerla, por si el
+  // usuario recarga la página a mitad de camino.
+  useEffect(() => {
+    const r = leerReceta();
+    if (!r) return;
+    setReceta(r);
+    setTab('youtube');
+    setYoutubeUrl(enlaceYoutube(r.videoId));
+    const titulo = sugerirTitulo(r);
+    if (titulo) setCustomTitle((actual) => actual || titulo);
+  }, []);
+
   const [isAnalyzingYt, setIsAnalyzingYt] = useState(false);
   const [ytInfo, setYtInfo] = useState<YoutubeInfoResponse | null>(null);
   const [isDownloadingYt, setIsDownloadingYt] = useState(false);
@@ -415,7 +430,43 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
   return (
     <div className="flex-1 bg-[#0a0a12] text-slate-100 min-h-screen py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-8">
-        
+
+        {receta && (
+          <div className="rounded-2xl border border-emerald-700/40 bg-emerald-950/25 p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  <Sparkles className="w-4 h-4" />
+                  Receta desde Vídeos virales
+                </div>
+                <ul className="mt-2 space-y-1 text-sm text-emerald-100/90">
+                  {descripcionReceta(receta).map((linea) => (
+                    <li key={linea} className="flex gap-2">
+                      <span className="text-emerald-500">•</span>
+                      <span>{linea}</span>
+                    </li>
+                  ))}
+                </ul>
+                {receta.titulo && (
+                  <p className="mt-2 truncate text-xs text-emerald-200/60">
+                    Referencia: {receta.titulo}
+                    {receta.canal ? ` · ${receta.canal}` : ''}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  borrarReceta();
+                  setReceta(null);
+                }}
+                className="flex-shrink-0 rounded-lg border border-emerald-700/50 px-2.5 py-1 text-[11px] font-bold text-emerald-300 transition hover:bg-emerald-500/10"
+              >
+                Quitar
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Top Breadcrumb & Header */}
         <div className="flex items-center justify-between border-b border-purple-900/30 pb-6">
           <div className="flex items-center gap-4">

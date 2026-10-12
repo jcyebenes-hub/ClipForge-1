@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Radar, Loader2, AlertTriangle, Search, Copy, Check, TrendingUp, Clock, CalendarClock, Flame } from 'lucide-react';
+import { Radar, Loader2, AlertTriangle, Search, Copy, Check, TrendingUp, Clock, CalendarClock, Flame, Wand2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { guardarReceta } from '../../../../lib/receta';
 import { grado, type NombreMetrica } from '../../../../lib/analisisYoutube';
 
 const gradoLabel = (m: NombreMetrica, v: number | null) => grado(m, v);
-import type { InformeAnalisis } from '../../../../lib/analisisYoutube';
+import type { InformeAnalisis, VideoInforme } from '../../../../lib/analisisYoutube';
 
 /** Color por nivel de la clasificación viewtrap. */
 const colorGrado = (g: string) =>
@@ -18,7 +20,7 @@ interface Props {
   onNavigate?: (path: string) => void;
 }
 
-const CompetenciaPage: React.FC<Props> = () => {
+const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
   const [modo, setModo] = useState<'canales' | 'clave'>('clave');
   const [canales, setCanales] = useState('');
   const [palabraClave, setPalabraClave] = useState('');
@@ -28,6 +30,29 @@ const CompetenciaPage: React.FC<Props> = () => {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [informe, setInforme] = useState<InformeAnalisis | null>(null);
+
+  /**
+   * Lleva la receta del Short ganador al flujo de creación: enlace, duración
+   * objetivo, palabras ganadoras y ritmo. Viaja por localStorage porque entre
+   * medias puede haber un registro o un inicio de sesión.
+   */
+  const usarReceta = (v: VideoInforme) => {
+    const guardada = guardarReceta({
+      videoId: v.id,
+      titulo: v.titulo,
+      canal: v.canal,
+      duracionSeg: v.duracionSeg,
+      duracionObjetivo: informe?.duracionMediaTop ?? v.duracionSeg,
+      palabras: (informe?.palabrasTitulo ?? []).map((x) => x.palabra),
+      creado: new Date().toISOString(),
+    });
+    if (!guardada) {
+      toast.error('No se ha podido guardar la receta en este navegador.');
+      return;
+    }
+    toast.success('Receta lista: duración, ritmo y palabras ya puestas.');
+    if (onNavigate) onNavigate('/dashboard/nuevo');
+  };
   const [analizados, setAnalizados] = useState(0);
   const [copiado, setCopiado] = useState<string | null>(null);
 
@@ -355,6 +380,14 @@ const CompetenciaPage: React.FC<Props> = () => {
                         {v.canal && <span>· {v.canal}</span>}
                       </div>
                     </div>
+                    <button
+                      onClick={() => usarReceta(v)}
+                      className="flex-shrink-0 flex items-center gap-1.5 rounded-lg border border-emerald-600/50 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/20 transition"
+                      title="Lleva la duración objetivo, el ritmo y las palabras ganadoras a la creación"
+                    >
+                      <Wand2 className="w-3.5 h-3.5" />
+                      <span className="whitespace-nowrap">Crear Short</span>
+                    </button>
                     <button
                       onClick={() => copiar(v.titulo)}
                       className="flex-shrink-0 rounded-lg border border-slate-700 p-1.5 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/50 transition"

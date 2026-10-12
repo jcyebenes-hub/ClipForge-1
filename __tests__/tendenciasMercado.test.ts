@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { POST } from '../src/app/api/tendencias/route';
+import { reiniciarCuotaParaPruebas } from '../src/lib/cuotaYoutube';
 
 /**
  * Prueba la ruta /api/tendencias de verdad, con fetch interceptado.
@@ -72,6 +73,8 @@ describe('/api/tendencias · filtro de mercado', () => {
   beforeEach(() => {
     process.env.YOUTUBE_API_KEY = 'clave-de-prueba-no-real';
     instalarFetchFalso();
+    // Cada prueba parte de la cuota intacta: si no, se agotan entre ellas.
+    reiniciarCuotaParaPruebas();
   });
 
   afterEach(() => {

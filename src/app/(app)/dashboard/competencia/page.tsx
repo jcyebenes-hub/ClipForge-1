@@ -3,6 +3,7 @@ import { Radar, Loader2, AlertTriangle, Search, Copy, Check, TrendingUp, Clock, 
 import { toast } from 'sonner';
 import { guardarReceta } from '../../../../lib/receta';
 import { avisarNoEspanol } from '../../../../lib/idiomaTitulo';
+import { useAuth } from '../../../../context/AuthContext';
 import { grado, type NombreMetrica } from '../../../../lib/analisisYoutube';
 
 const gradoLabel = (m: NombreMetrica, v: number | null) => grado(m, v);
@@ -35,11 +36,14 @@ const MERCADOS: { valor: Mercado; etiqueta: string; region: string; idioma: stri
 ];
 
 const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
+  const { user, profile } = useAuth();
   const [modo, setModo] = useState<'canales' | 'clave'>('clave');
   const [canales, setCanales] = useState('');
   const [palabraClave, setPalabraClave] = useState('');
   const [dias, setDias] = useState(90);
   const [mercado, setMercado] = useState<Mercado>('ES');
+  /** Búsquedas que le quedan hoy al usuario. null = todavía no ha buscado. */
+  const [restantes, setRestantes] = useState<number | null>(null);
   const [soloShorts, setSoloShorts] = useState(true);
   const [orden, setOrden] = useState<'contribucion' | 'rendimiento'>('contribucion');
   const [cargando, setCargando] = useState(false);
@@ -99,6 +103,8 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
           modo === 'clave'
             ? {
                 palabraClave: palabraClave.trim(),
+                user_id: user?.id,
+                plan: profile?.plan,
                 dias,
                 orden,
                 region: MERCADOS.find((m) => m.valor === mercado)?.region ?? 'ES',
@@ -113,6 +119,7 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
         return;
       }
       setInforme(data.informe);
+      if (typeof data.busquedasRestantes === 'number') setRestantes(data.busquedasRestantes);
       setAnalizados(data.analizados ?? 0);
     } catch (e: any) {
       setError(e?.message ?? 'No se pudo conectar con el servidor.');
@@ -166,7 +173,10 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
                 className="mt-1.5 w-full rounded-xl bg-slate-900/70 border border-slate-700 px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
               />
               <span className="text-[11px] text-slate-500">
-                Busca los Shorts más vistos de ese tema ({MERCADOS.find((m) => m.valor === mercado)?.ayuda}). Cuesta 100 unidades de cuota: ~100 búsquedas/día.
+                Busca los Shorts más vistos de ese tema ({MERCADOS.find((m) => m.valor === mercado)?.ayuda}).{' '}
+                {restantes === null
+                  ? 'Cada búsqueda gasta cuota de YouTube.'
+                  : `Te quedan ${restantes} ${restantes === 1 ? 'búsqueda' : 'búsquedas'} hoy.`}
               </span>
             </label>
           ) : (

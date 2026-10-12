@@ -17,6 +17,27 @@
  */
 
 import { analizarVideos, metricasCanal, type MetricaCanal, type YTVideo } from '@/src/lib/analisisYoutube';
+import {
+  puedeBuscar,
+  registrarBusqueda,
+  busquedasHoy,
+  limiteUsuario,
+  BUSQUEDAS_GLOBALES_MAX_DIA,
+} from '@/src/lib/cuotaYoutube';
+
+/**
+ * IP del que llama, para poder limitar también a quien no tiene sesión.
+ * Versión mínima y local: la de lib/rateLimit.ts hace lo mismo pero importa el
+ * cliente de Supabase, y eso impediría probar esta ruta en Node.
+ */
+function ipDeRequest(req: Request): string {
+  const h = req.headers;
+  const cf = h.get('cf-connecting-ip');
+  if (cf) return cf;
+  const xff = h.get('x-forwarded-for');
+  if (xff) return xff.split(',')[0].trim();
+  return h.get('x-real-ip') || 'desconocida';
+}
 
 export const runtime = 'nodejs';
 
@@ -58,6 +79,30 @@ export async function POST(req: Request) {
     const palabraClave = String(body.palabraClave ?? '').trim();
     if (!palabraClave) return Response.json({ error: 'Indica una palabra clave.' }, { status: 400 });
 
+    // --- Cuota de YouTube -------------------------------------------------
+    // Una búsqueda cuesta 102 unidades y Google da 10.000 al día para TODA la
+    // aplicación. Se comprueba antes de llamar a YouTube: gastar unidades y
+    // luego rechazar la petición sería tirar el dinero.
+    const identificador = String(body.user_id ?? '').trim() || ipDeRequest(req);
+    const plan = String(body.plan ?? '').trim() || null;
+    const usadas = busquedasHoy(identificador);
+    const veredicto = puedeBuscar({
+      globalesHoy: usadas.globales,
+      usuarioHoy: usadas.usuario,
+      plan,
+    });
+    if (!veredicto.ok) {
+      return Response.json(
+        {
+          error: veredicto.mensaje,
+          code: 'CUOTA_YOUTUBE',
+          motivo: veredicto.motivo,
+          busquedasRestantes: 0,
+        },
+        { status: 429 }
+      );
+    }
+
     const dias = Math.min(180, Math.max(7, Number(body.dias) || 30));
     // 'GLOBAL' busca sin filtro de país ni de idioma. Sirve para cazar tendencias
     // en inglés meses antes de que lleguen al mercado hispano.
@@ -85,6 +130,7 @@ export async function POST(req: Request) {
       key
     );
     const ids = [...new Set((busca?.items ?? []).map((it: any) => it?.id?.videoId).filter(Boolean))] as string[];
+    if (ids.length) registrarBusqueda(identificador);
     if (!ids.length) {
       return Response.json(
         { error: `No se encontraron Shorts de «${palabraClave}» en los últimos ${dias} días.`, informe: null },
@@ -142,6 +188,11 @@ export async function POST(req: Request) {
       idioma: idioma || null,
       sinFiltro,
       costeCuota: 102, // search(100) + videos(1) + channels(1)
+      busquedasRestantes: Math.max(0, limiteUsuario(plan) - busquedasHoy(identificador).usuario),
+      busquedasGlobalesRestantes: Math.max(
+        0,
+        BUSQUEDAS_GLOBALES_MAX_DIA - busquedasHoy(identificador).globales
+      ),
     });
   } catch (e: any) {
     console.error('[tendencias] Error:', e);

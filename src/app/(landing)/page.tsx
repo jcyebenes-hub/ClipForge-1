@@ -7,6 +7,7 @@ import { Funciones } from '../../components/landing/funciones';
 import { Pricing } from '../../components/landing/pricing';
 import { Faq } from '../../components/landing/faq';
 import { Footer } from '../../components/landing/footer';
+import { urlKoFi } from '../../lib/kofi';
 import { 
   Sparkles, 
   X, 
@@ -45,9 +46,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
   const [activeModal, setActiveModal] = useState<'terms' | 'privacy' | 'contact' | null>(null);
   const [planModal, setPlanModal] = useState<'creador' | 'medida' | null>(null);
 
-  // Sin esta variable el botón de Ko-fi no se renderiza: mejor saberlo que
-  // enseñar un enlace muerto.
-  const kofiUrl = ((import.meta.env.VITE_KOFI_URL as string | undefined) || '').trim();
+  const kofiUrl = urlKoFi();
 
   const handleStartFree = () => {
     if (onNavigate) {
@@ -137,22 +136,18 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
             <ol className="mt-4 space-y-3 text-sm text-slate-200">
               <li className="flex gap-3">
                 <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-purple-700 text-xs font-bold text-white">1</span>
-                {kofiUrl ? (
-                  <span>
-                    Apoya el proyecto en{' '}
-                    <a
-                      href={kofiUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold text-purple-300 underline decoration-purple-500/50 hover:text-purple-200"
-                    >
-                      Ko-fi
-                    </a>
-                    .
-                  </span>
-                ) : (
-                  <span>Escríbenos y te decimos cómo aportar (aún no hay enlace de pago configurado).</span>
-                )}
+                <span>
+                  Apoya el proyecto en{' '}
+                  <a
+                    href={kofiUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-purple-300 underline decoration-purple-500/50 hover:text-purple-200"
+                  >
+                    Ko-fi
+                  </a>{' '}
+                  (3 € o lo que quieras aportar).
+                </span>
               </li>
               <li className="flex gap-3">
                 <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-purple-700 text-xs font-bold text-white">2</span>

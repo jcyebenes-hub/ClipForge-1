@@ -6,11 +6,11 @@ import { trackEvent } from '../../lib/analytics';
 /**
  * Tacita de Ko-fi con el ICONO oficial elegido por el usuario (public/kofi.png),
  * servido como estático desde dist/. SVG ya no se usa. Solo se renderiza si
- * VITE_KOFI_URL está configurada.
+ * El enlace viene de lib/kofi.ts (VITE_KOFI_URL tiene prioridad).
  */
+import { urlKoFi } from '../../lib/kofi';
 export function KoFiTopButton() {
-  const kofiUrl = ((import.meta.env.VITE_KOFI_URL as string | undefined) || '').trim();
-  if (!kofiUrl) return null;
+  const kofiUrl = urlKoFi();
 
   const base = (import.meta as any).env?.BASE_URL || '/';
 

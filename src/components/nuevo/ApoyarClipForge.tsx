@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { trackEvent } from '../../lib/analytics';
+import { urlKoFi } from '../../lib/kofi';
 
 /**
  * ApoyarClipForge
@@ -56,7 +57,7 @@ interface Props {
 }
 
 export function ApoyarClipForge({ titulo, compacto = false, className = '' }: Props) {
-  const kofiUrl = ((import.meta.env.VITE_KOFI_URL as string | undefined) || '').trim();
+  const kofiUrl = urlKoFi();
   const [email, setEmail] = useState('');
   const [estado, setEstado] = useState<'idle' | 'enviado' | 'error'>('idle');
   const [mensaje, setMensaje] = useState('');

@@ -138,14 +138,14 @@ export const Funciones: React.FC = () => {
     },
     {
       title: 'Traducción a 30+ idiomas',
-      subtitle: 'Multiplica tu audiencia global con subtítulos y doblaje multi-idioma',
+      subtitle: 'Multiplica tu audiencia con subtítulos traducidos a 37 idiomas',
       description:
-        'Traduce tus clips a inglés, portugués, alemán, francés, japonés y más de 30 idiomas con solo un clic. Adapta las frases coloquiales para conectar con audiencias de todo el planeta.',
+        'Traduce los subtítulos de tus clips a 37 idiomas con un solo clic: inglés, portugués, alemán, francés, japonés y muchos más. Adapta las frases coloquiales para conectar con audiencias de todo el planeta. (Se traducen los subtítulos, no la voz.)',
       icon: Languages,
       tag: 'Alcance Global',
       beforeAfter: {
         beforeText: 'Contenido limitado únicamente a tu idioma local',
-        afterText: 'Exportación en más de 30 idiomas simultáneos',
+        afterText: 'Subtítulos traducidos a 37 idiomas',
         beforeSvg: (
           <div className="w-full h-28 bg-[#090912] rounded-lg p-2.5 flex flex-col justify-center items-center border border-rose-950/30">
             <div className="flex items-center gap-1 text-slate-400 text-xs font-semibold">

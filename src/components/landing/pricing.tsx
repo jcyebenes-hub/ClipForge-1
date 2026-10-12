@@ -15,63 +15,60 @@ export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
       name: 'Gratis',
       priceMonthly: 0,
       priceYearly: 0,
-      description: 'Ideal para creadores que están empezando y quieren probar el poder de la IA sin coste.',
-      badge: '100% Gratuito',
+      description: 'Para empezar a crear Shorts sin pagar nada. Se procesa en tu propio ordenador, no en un servidor.',
+      badge: '100% gratuito',
       isPopular: false,
-      buttonText: 'Empezar gratis ya',
+      buttonText: 'Empezar gratis',
       buttonVariant: 'secondary',
       features: [
-        'Procesado ilimitado en tu propio navegador',
-        'Hasta 1080p Full HD de exportación',
-        'Detección automática de momentos virales',
-        'Subtítulos automáticos Whisper (Español)',
-        'Auto-encuadre facial 9:16',
-        'Marca de agua pequeña y discreta opcional',
+        'Procesado en tu propio navegador (tu CPU, no un servidor)',
+        'Cortes automáticos en vertical 9:16',
+        'Subtítulos automáticos en español',
+        '7 estilos de subtítulos',
+        'Ritmo acelerado, título arriba y limpieza de silencios',
+        'Fondo desenfocado y pantalla partida',
+        'Revisión de clips escribiendo una frase',
+        'Traducción de subtítulos a 37 idiomas',
+        'Vídeos virales de tu nicho y receta lista para crear',
+        'Exportación en Full HD',
       ],
       missing: [
-        'Sin publicación automática multicanal',
-        'Sin soporte de doblaje y traducción 30+ idiomas',
-        'Sin renderizado prioritario en la nube',
+        'Marca de agua «ClipForge» en la esquina',
+        '60 minutos de material al mes',
       ],
     },
     {
       name: 'Creador',
       priceMonthly: 3,
-      priceYearly: 2.4, // 20% discount
-      description: 'El plan favorito de YouTubers, podcasters y tiktokers que publican contenido semanal.',
+      priceYearly: 2.4, // 20% de descuento
+      description: 'Para quien publica cada semana y quiere sacar los vídeos limpios, sin marca de agua.',
       badge: 'Más popular',
       isPopular: true,
       buttonText: 'Elegir plan Creador',
       buttonVariant: 'primary',
       features: [
         'TODO lo del plan Gratis',
-        'SIN marca de agua de ningún tipo',
-        'Publicación automática en TikTok, Shorts y Reels',
-        'Plantillas de subtítulos tipo MrBeast / Hormozi',
-        'Generador de hooks y descripciones SEO',
-        'Exportación ultra-rápida con aceleración GPU',
-        'Soporte prioritario por chat',
+        'SIN marca de agua',
+        '300 minutos de material al mes (5 veces más)',
+        'Búsquedas de vídeos virales sin límite diario',
+        'Inicio de sesión con la huella del móvil',
+        'Cada función nueva, en cuanto se publica',
       ],
       missing: [],
     },
     {
-      name: 'Pro',
-      priceMonthly: 8,
-      priceYearly: 6.4,
-      description: 'Para agencias, canales en rápido crecimiento y creadores con múltiples marcas.',
-      badge: 'Automatización Total',
+      name: 'A medida',
+      priceMonthly: -1,
+      priceYearly: -1,
+      description: '¿Llevas varios canales o una agencia? Dinos qué necesitas y lo ajustamos.',
+      badge: 'Hablamos',
       isPopular: false,
-      buttonText: 'Elegir plan Pro',
+      buttonText: 'Escríbenos',
       buttonVariant: 'secondary',
       features: [
-        'TODO lo del plan Creador',
-        'Automatización total de canal (Auto-post 24/7)',
-        'Traducción y doblaje a más de 30 idiomas',
-        'Renderizado cloud prioritario en servidores dedicados',
-        'Modo gaming y B-Roll automático ilimitado',
-        'Acceso a API y webhooks para integraciones',
-        'Gestión de hasta 10 canales y cuentas sociales',
-        'Manager de cuenta dedicado',
+        'Minutos adaptados a tu volumen real',
+        'Varias cuentas y canales',
+        'Factura a nombre de tu empresa',
       ],
       missing: [],
     },
@@ -103,7 +100,7 @@ export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
             </span>
           </h2>
           <p className="text-base sm:text-lg text-slate-300">
-            Comienza gratis para siempre con procesado en tu propio navegador o desbloquea publicación automática por solo 3 €/mes.
+            Empieza gratis y sin instalar nada: los vídeos se procesan en tu propio navegador. Pasa a Creador cuando quieras quitar la marca de agua.
           </p>
 
           {/* Billing Toggle */}
@@ -180,10 +177,10 @@ export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
                   {/* Price Display */}
                   <div className="mb-6 pb-6 border-b border-slate-800/80 flex items-baseline gap-1.5">
                     <span className="text-4xl sm:text-5xl font-black text-white font-['Plus_Jakarta_Sans',sans-serif]">
-                      {price === 0 ? '0 €' : `${price} €`}
+                      {price === 0 ? '0 €' : price < 0 ? 'A medida' : `${price} €`}
                     </span>
                     <span className="text-sm font-medium text-slate-400">
-                      {price === 0 ? '/ siempre' : '/ mes'}
+                      {price === 0 ? '/ siempre' : price < 0 ? '' : '/ mes'}
                     </span>
                     {billingCycle === 'yearly' && price > 0 && (
                       <span className="text-[11px] text-cyan-400 font-semibold ml-1">

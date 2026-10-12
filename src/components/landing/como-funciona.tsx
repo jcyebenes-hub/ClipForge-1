@@ -49,10 +49,10 @@ export const ComoFunciona: React.FC = () => {
       number: '02',
       title: 'La IA detecta los momentos virales y añade mejoras',
       description:
-        'Nuestros algoritmos analizan los picos de retención, las emociones de voz y el dinamismo para recortar las mejores partes. Añade automáticamente subtítulos con estilo, seguimiento de rostros en 9:16 y ganchos de alta conversión.',
+        'Nuestros algoritmos analizan los picos de retención, las emociones de voz y el dinamismo para recortar las mejores partes. Añade automáticamente subtítulos con estilo, encuadre vertical 9:16 y ganchos de alta conversión.',
       icon: Cpu,
       tag: 'Procesamiento IA',
-      detail: 'Reencuadre facial inteligente + Whisper IA para subtítulos sin fallos.',
+      detail: 'Encuadre vertical 9:16 + Whisper IA para subtítulos sin fallos.',
       visual: (
         <div className="w-full h-48 bg-[#0d0d1a] rounded-xl p-4 border border-purple-900/40 flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs">

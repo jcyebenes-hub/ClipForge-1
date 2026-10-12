@@ -21,13 +21,13 @@ export const Faq: React.FC = () => {
       question: '¿Dónde se procesan los vídeos?',
       icon: Cpu,
       answer:
-        'En el plan gratuito, el análisis de audio, detección de caras y renderizado se realiza localmente en tu propio dispositivo a través de tu navegador, garantizando máxima privacidad (tus vídeos no se quedan almacenados en ningún servidor). En los planes Creador y Pro, puedes optar por renderizado ultrarrápido en nuestros clusters de GPU en la nube para procesar vídeos de varias horas en pocos segundos.',
+        'El corte, el renderizado y la quema de subtítulos ocurren en tu propio navegador, con la CPU de tu dispositivo: tus vídeos no se suben a un servidor para procesarse. Lo único que sale de tu ordenador es el audio, para transcribirlo, y las peticiones a la IA cuando las usas.'
     },
     {
       question: '¿Qué idiomas soporta?',
       icon: HelpCircle,
       answer:
-        'ClipForge cuenta con soporte completo de transcripción y subtitulado en más de 30 idiomas gracias a la tecnología OpenAI Whisper integrada (español, inglés, portugués, francés, alemán, italiano, japonés, coreano, entre otros). Además, detecta automáticamente el idioma hablado sin que tengas que configurarlo manualmente.',
+        'La transcripción usa Whisper y trabaja en español, que es el idioma por defecto. Después puedes traducir los subtítulos a 37 idiomas (inglés, portugués, francés, alemán, italiano, japonés, entre otros). Ojo: se traducen los subtítulos, no la voz; no hay doblaje.'
     },
     {
       question: '¿Necesito experiencia en edición?',
@@ -39,7 +39,7 @@ export const Faq: React.FC = () => {
       question: '¿Puedo publicar automáticamente?',
       icon: Share2,
       answer:
-        'Sí. Con los planes Creador y Pro puedes conectar tus cuentas oficiales de TikTok, YouTube Shorts e Instagram Reels para programar o publicar tus clips directamente con un solo clic, incluyendo títulos sugeridos, descripciones y hashtags optimizados para cada algoritmo.',
+        'Todavía no. Hoy descargas el Short y lo subes tú a TikTok, YouTube o Instagram. Lo que sí tienes es un calendario de publicaciones para organizar qué subes y cuándo, con título, descripción y hashtags listos para copiar de un toque. La subida directa está en desarrollo y no la cobramos hasta que funcione.'
     },
     {
       question: '¿Qué pasa con los derechos de autor?',

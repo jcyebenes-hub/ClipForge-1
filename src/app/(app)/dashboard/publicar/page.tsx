@@ -231,7 +231,7 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
   });
 
   return (
-    <div className="min-h-screen bg-[#090910] text-slate-100 p-6 md:p-10 space-y-8">
+    <div className="min-h-screen w-full max-w-7xl mx-auto bg-[#090910] text-slate-100 p-4 sm:p-6 md:p-10 space-y-6 sm:space-y-8">
       
       {/* Top Banner & Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-purple-900/30 pb-6">
@@ -342,15 +342,15 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
       </div>
 
       {/* Filters Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-[#10101f] border border-purple-900/30">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 p-3 sm:p-4 rounded-2xl bg-[#10101f] border border-purple-900/30">
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-purple-400" />
           <span className="text-xs font-bold text-slate-300">Filtrar por:</span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2 sm:gap-3 min-w-0">
           {/* Platform filter */}
-          <div className="flex items-center rounded-xl bg-[#16162a] p-1 border border-slate-800">
+          <div className="flex flex-wrap items-center rounded-xl bg-[#16162a] p-1 border border-slate-800 max-w-full">
             {['all', 'youtube', 'tiktok', 'instagram'].map((plat) => (
               <button
                 key={plat}
@@ -367,7 +367,7 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
           </div>
 
           {/* Status filter */}
-          <div className="flex items-center rounded-xl bg-[#16162a] p-1 border border-slate-800">
+          <div className="flex flex-wrap items-center rounded-xl bg-[#16162a] p-1 border border-slate-800 max-w-full">
             {['all', 'programado', 'publicado', 'error', 'borrador_manual'].map((st) => (
               <button
                 key={st}
@@ -390,16 +390,19 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
       </div>
 
       {/* Publications Table */}
+      <p className="sm:hidden -mb-4 text-[11px] text-slate-500">
+        Desliza la tabla hacia los lados para ver todas las columnas →
+      </p>
       <div className="rounded-2xl border border-purple-900/30 bg-[#101020] overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
+          <table className="w-full min-w-[720px] text-left text-xs text-slate-300">
             <thead className="bg-[#151428] text-slate-400 font-bold uppercase tracking-wider text-[10px] border-b border-purple-900/30">
               <tr>
-                <th className="py-3.5 px-4">Clip / Título</th>
-                <th className="py-3.5 px-4">Plataforma</th>
-                <th className="py-3.5 px-4">Fecha Programada</th>
-                <th className="py-3.5 px-4">Estado</th>
-                <th className="py-3.5 px-4 text-right">Acciones</th>
+                <th className="py-3.5 px-2.5 sm:px-4">Clip / Título</th>
+                <th className="py-3.5 px-2.5 sm:px-4">Plataforma</th>
+                <th className="py-3.5 px-2.5 sm:px-4">Fecha Programada</th>
+                <th className="py-3.5 px-2.5 sm:px-4">Estado</th>
+                <th className="py-3.5 px-2.5 sm:px-4 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-purple-950/40 font-medium">
@@ -417,7 +420,7 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
                   return (
                     <tr key={post.id} className="hover:bg-[#16152e] transition-colors">
                       {/* Title & Info */}
-                      <td className="py-4 px-4">
+                      <td className="py-3 sm:py-4 px-2.5 sm:px-4">
                         <div className="space-y-1">
                           <span className="font-bold text-white block max-w-sm md:max-w-md truncate">
                             {post.titulo}
@@ -433,7 +436,7 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
                       </td>
 
                       {/* Platform */}
-                      <td className="py-4 px-4">
+                      <td className="py-3 sm:py-4 px-2.5 sm:px-4">
                         {post.plataforma === 'youtube' && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-950/80 text-red-300 border border-red-900/50 font-bold text-[11px]">
                             <Youtube className="w-3.5 h-3.5 fill-red-400" />
@@ -455,7 +458,7 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
                       </td>
 
                       {/* Date */}
-                      <td className="py-4 px-4">
+                      <td className="py-3 sm:py-4 px-2.5 sm:px-4">
                         {post.fecha_programada ? (
                           <div className="flex items-center gap-2">
                             <Clock className={`w-3.5 h-3.5 ${isPast && post.estado === 'programado' ? 'text-amber-400' : 'text-slate-400'}`} />
@@ -474,7 +477,7 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
                       </td>
 
                       {/* Status */}
-                      <td className="py-4 px-4">
+                      <td className="py-3 sm:py-4 px-2.5 sm:px-4">
                         {post.estado === 'programado' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-950/60 text-amber-300 border border-amber-800/40 text-[10px] font-bold">
                             <Clock3 className="w-3 h-3" />
@@ -502,7 +505,7 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
                       </td>
 
                       {/* Actions */}
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-3 sm:py-4 px-2.5 sm:px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {post.url_publicacion && (
                             <a

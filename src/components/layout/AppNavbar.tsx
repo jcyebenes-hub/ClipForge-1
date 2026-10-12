@@ -10,6 +10,8 @@ import {
   Flame, 
   ChevronDown, 
   ExternalLink,
+  Menu,
+  X,
   Youtube,
   Calendar as CalendarIcon,
   BarChart3,
@@ -38,6 +40,19 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
   const { user, profile, signOut } = useAuth();
   const { isConnected, channel, connectYouTube, disconnectYouTube } = useYouTube();
   const { idioma, setIdioma, t } = useLanguage();
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+
+  /**
+   * El menú en un solo sitio. Estaba duplicado de hecho: solo existía en el nav
+   * de escritorio, que es `hidden sm:flex`, así que en el teléfono no había
+   * forma de llegar a Vídeos virales ni a Estadísticas.
+   */
+  const navegacion = [
+    { ruta: '/dashboard', etiqueta: t('dashboard'), Icono: LayoutDashboard, color: 'text-purple-400' },
+    { ruta: '/dashboard/publicar', etiqueta: t('publicar'), Icono: CalendarIcon, color: 'text-pink-400' },
+    { ruta: '/dashboard/competencia', etiqueta: 'Vídeos virales', Icono: Radar, color: 'text-emerald-400' },
+    { ruta: '/dashboard/estadisticas', etiqueta: t('estadisticas'), Icono: BarChart3, color: 'text-cyan-400' },
+  ];
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showComoSeProcesa, setShowComoSeProcesa] = useState(false);
 
@@ -133,6 +148,17 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
 
             {/* Right: Language Switcher + YouTube + Create CTA + User Menu */}
             <div className="flex items-center gap-3">
+              {/* Menú móvil: el nav de arriba es `hidden sm:flex` y en el teléfono
+                  no se ve, así que sin este botón no se puede navegar. */}
+              <button
+                onClick={() => setMenuMovilAbierto((abierto) => !abierto)}
+                className="sm:hidden flex h-9 w-9 items-center justify-center rounded-xl bg-[#141424] border border-purple-900/40 text-slate-300 transition-colors hover:text-white"
+                aria-label="Abrir menú"
+                aria-expanded={menuMovilAbierto}
+              >
+                {menuMovilAbierto ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
+
               {/* Ko-fi (logo oficial) junto al selector de idioma */}
               <KoFiTopButton />
 
@@ -315,6 +341,31 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
               </div>
             </div>
           </div>
+
+          {menuMovilAbierto && (
+            <nav
+              id="menu-movil"
+              className="sm:hidden space-y-1 border-t border-purple-900/30 px-1 pb-3 pt-3"
+            >
+              {navegacion.map(({ ruta, etiqueta, Icono, color }) => (
+                <button
+                  key={ruta}
+                  onClick={() => {
+                    setMenuMovilAbierto(false);
+                    handleNav(ruta);
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-semibold transition-colors ${
+                    currentPath === ruta
+                      ? 'border border-purple-800/40 bg-purple-950/60 text-white'
+                      : 'text-slate-300 hover:bg-slate-900/50'
+                  }`}
+                >
+                  <Icono className={`h-4 w-4 ${color}`} />
+                  <span>{etiqueta}</span>
+                </button>
+              ))}
+            </nav>
+          )}
         </div>
       </header>
 

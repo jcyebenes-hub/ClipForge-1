@@ -43,7 +43,11 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
 
   // Legal / Info Modals
   const [activeModal, setActiveModal] = useState<'terms' | 'privacy' | 'contact' | null>(null);
-  const [selectedPlanAlert, setSelectedPlanAlert] = useState<string | null>(null);
+  const [planModal, setPlanModal] = useState<'creador' | 'medida' | null>(null);
+
+  // Sin esta variable el botón de Ko-fi no se renderiza: mejor saberlo que
+  // enseñar un enlace muerto.
+  const kofiUrl = ((import.meta.env.VITE_KOFI_URL as string | undefined) || '').trim();
 
   const handleStartFree = () => {
     if (onNavigate) {
@@ -85,33 +89,97 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
   };
 
   const handleSelectPlan = (planName: string) => {
-    setSelectedPlanAlert(planName);
-    setTimeout(() => {
-      setSelectedPlanAlert(null);
-    }, 4000);
+    if (planName === 'Gratis') {
+      handleStartFree();
+      return;
+    }
+    setPlanModal(planName === 'A medida' ? 'medida' : 'creador');
   };
 
   return (
     <div className="min-h-screen bg-[#0a0a12] text-slate-100 relative selection:bg-purple-600/30 selection:text-cyan-300">
       
-      {/* Plan Selected Notification Toast */}
-      {selectedPlanAlert && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#16142e] border border-purple-500 text-white px-5 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5">
-          <div className="w-8 h-8 rounded-xl bg-purple-600 flex items-center justify-center text-cyan-300">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-cyan-400">Plan Seleccionado</p>
-            <p className="text-sm font-semibold text-slate-100">
-              Has seleccionado el <span className="text-purple-300 font-bold">Plan {selectedPlanAlert}</span>. ¡Iniciando entorno!
-            </p>
-          </div>
-          <button 
-            onClick={() => setSelectedPlanAlert(null)}
-            className="p-1 text-slate-400 hover:text-white"
+      {/* Cómo se activa un plan de pago. Sin adornos: hoy es manual y se dice. */}
+      {planModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4"
+          onClick={() => setPlanModal(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-t-3xl border border-purple-800/50 bg-[#12102a] p-6 shadow-2xl sm:rounded-3xl"
+            onClick={(e) => e.stopPropagation()}
           >
-            <X className="w-4 h-4" />
-          </button>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+                  {planModal === 'creador' ? 'Plan Creador' : 'Plan a medida'}
+                </p>
+                <h3 className="mt-1 text-xl font-black text-white">
+                  {planModal === 'creador'
+                    ? 'Cómo quitar la marca de agua'
+                    : 'Cuéntanos qué necesitas'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setPlanModal(null)}
+                className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                aria-label="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="mt-4 text-sm leading-relaxed text-slate-300">
+              Todavía no tenemos pagos automáticos, así que la activación se hace a
+              mano. Por eso el precio es bajo: estás ayudando a arrancar el proyecto.
+            </p>
+
+            <ol className="mt-4 space-y-3 text-sm text-slate-200">
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-purple-700 text-xs font-bold text-white">1</span>
+                {kofiUrl ? (
+                  <span>
+                    Apoya el proyecto en{' '}
+                    <a
+                      href={kofiUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-purple-300 underline decoration-purple-500/50 hover:text-purple-200"
+                    >
+                      Ko-fi
+                    </a>
+                    .
+                  </span>
+                ) : (
+                  <span>Escríbenos y te decimos cómo aportar (aún no hay enlace de pago configurado).</span>
+                )}
+              </li>
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-purple-700 text-xs font-bold text-white">2</span>
+                <span>Mándanos el correo con el que te registraste en ClipForge.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-purple-700 text-xs font-bold text-white">3</span>
+                <span>
+                  {planModal === 'creador'
+                    ? 'Activamos tu plan en menos de 24 h y la marca de agua desaparece.'
+                    : 'Te respondemos con un plan ajustado a tu volumen real.'}
+                </span>
+              </li>
+            </ol>
+
+            <div className="mt-5 rounded-xl border border-amber-900/40 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200/80">
+              Si prefieres no pagar, el plan Gratis sigue siendo completo: solo lleva
+              marca de agua y 60 minutos de material al mes.
+            </div>
+
+            <button
+              onClick={() => setPlanModal(null)}
+              className="mt-5 w-full rounded-xl bg-purple-600 py-3 text-sm font-bold text-white transition hover:bg-purple-500"
+            >
+              Entendido
+            </button>
+          </div>
         </div>
       )}
 

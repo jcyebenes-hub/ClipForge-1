@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Radar, Loader2, AlertTriangle, Search, Copy, Check, TrendingUp, Clock, CalendarClock, Flame, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { guardarReceta } from '../../../../lib/receta';
+import { avisarNoEspanol } from '../../../../lib/idiomaTitulo';
 import { grado, type NombreMetrica } from '../../../../lib/analisisYoutube';
 
 const gradoLabel = (m: NombreMetrica, v: number | null) => grado(m, v);
@@ -20,11 +21,25 @@ interface Props {
   onNavigate?: (path: string) => void;
 }
 
+type Mercado = 'ES' | 'LATAM' | 'GLOBAL';
+
+/**
+ * Qué se manda a la API en cada caso. Ojo: ni `regionCode` ni
+ * `relevanceLanguage` filtran de verdad (son sugerencias), por eso los títulos
+ * siguen revisándose con el detector de idioma antes de mostrarlos.
+ */
+const MERCADOS: { valor: Mercado; etiqueta: string; region: string; idioma: string; ayuda: string }[] = [
+  { valor: 'ES', etiqueta: '🇪🇸 España', region: 'ES', idioma: 'es', ayuda: 'España, español' },
+  { valor: 'LATAM', etiqueta: '🌎 Latinoamérica', region: 'MX', idioma: 'es', ayuda: 'Latinoamérica, español' },
+  { valor: 'GLOBAL', etiqueta: '🌐 Todo el mundo', region: 'GLOBAL', idioma: '', ayuda: 'sin filtro de país ni idioma' },
+];
+
 const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
   const [modo, setModo] = useState<'canales' | 'clave'>('clave');
   const [canales, setCanales] = useState('');
   const [palabraClave, setPalabraClave] = useState('');
   const [dias, setDias] = useState(90);
+  const [mercado, setMercado] = useState<Mercado>('ES');
   const [soloShorts, setSoloShorts] = useState(true);
   const [orden, setOrden] = useState<'contribucion' | 'rendimiento'>('contribucion');
   const [cargando, setCargando] = useState(false);
@@ -82,7 +97,13 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
           modo === 'clave'
-            ? { palabraClave: palabraClave.trim(), dias, orden }
+            ? {
+                palabraClave: palabraClave.trim(),
+                dias,
+                orden,
+                region: MERCADOS.find((m) => m.valor === mercado)?.region ?? 'ES',
+                idioma: MERCADOS.find((m) => m.valor === mercado)?.idioma ?? 'es',
+              }
             : { canales: lista, dias, soloShorts, orden }
         ),
       });
@@ -145,7 +166,7 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
                 className="mt-1.5 w-full rounded-xl bg-slate-900/70 border border-slate-700 px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
               />
               <span className="text-[11px] text-slate-500">
-                Busca los Shorts más vistos de ese tema (España, español). Cuesta 100 unidades de cuota: ~100 búsquedas/día.
+                Busca los Shorts más vistos de ese tema ({MERCADOS.find((m) => m.valor === mercado)?.ayuda}). Cuesta 100 unidades de cuota: ~100 búsquedas/día.
               </span>
             </label>
           ) : (
@@ -163,6 +184,22 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
           )}
 
           <div className="flex flex-wrap items-end gap-3">
+            {modo === 'clave' && (
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Mercado</span>
+                <select
+                  value={mercado}
+                  onChange={(e) => setMercado(e.target.value as Mercado)}
+                  className="mt-1.5 rounded-xl bg-slate-900/70 border border-slate-700 px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                >
+                  {MERCADOS.map((m) => (
+                    <option key={m.valor} value={m.valor}>
+                      {m.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Periodo</span>
               <select
@@ -375,6 +412,14 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
                         {v.contrib !== null && (
                           <span className={`rounded border px-1.5 py-0.5 font-semibold ${colorGrado(v.gradoContrib)}`} title="Contribución: vistas ÷ media del canal">
                             {v.contrib}× media
+                          </span>
+                        )}
+                        {avisarNoEspanol(v.titulo) && (
+                          <span
+                            className="rounded border border-amber-700/50 bg-amber-950/40 px-1.5 py-0.5 font-semibold text-amber-300"
+                            title="El filtro de idioma de YouTube es solo una sugerencia: este título no parece español."
+                          >
+                            Puede no ser español
                           </span>
                         )}
                         {v.canal && <span>· {v.canal}</span>}

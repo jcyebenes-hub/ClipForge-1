@@ -59,8 +59,11 @@ export async function POST(req: Request) {
     if (!palabraClave) return Response.json({ error: 'Indica una palabra clave.' }, { status: 400 });
 
     const dias = Math.min(180, Math.max(7, Number(body.dias) || 30));
-    const region = String(body.region ?? 'ES').slice(0, 2).toUpperCase();
-    const idioma = String(body.idioma ?? 'es').slice(0, 5);
+    // 'GLOBAL' busca sin filtro de país ni de idioma. Sirve para cazar tendencias
+    // en inglés meses antes de que lleguen al mercado hispano.
+    const sinFiltro = String(body.region ?? '').trim().toUpperCase() === 'GLOBAL';
+    const region = sinFiltro ? '' : String(body.region ?? 'ES').slice(0, 2).toUpperCase();
+    const idioma = sinFiltro ? '' : String(body.idioma ?? 'es').slice(0, 10);
     const orden: 'contribucion' | 'rendimiento' = body.orden === 'rendimiento' ? 'rendimiento' : 'contribucion';
 
     const despues = new Date(Date.now() - dias * 86400000).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -75,8 +78,8 @@ export async function POST(req: Request) {
         videoDuration: 'short',
         order: 'viewCount',
         publishedAfter: despues,
-        regionCode: region,
-        relevanceLanguage: idioma,
+        regionCode: region || undefined,
+        relevanceLanguage: idioma || undefined,
         maxResults: '50',
       },
       key
@@ -135,7 +138,9 @@ export async function POST(req: Request) {
       informe,
       analizados: videos.length,
       palabraClave,
-      region,
+      region: region || 'GLOBAL',
+      idioma: idioma || null,
+      sinFiltro,
       costeCuota: 102, // search(100) + videos(1) + channels(1)
     });
   } catch (e: any) {

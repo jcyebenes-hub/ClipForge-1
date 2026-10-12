@@ -1488,6 +1488,22 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     onNavigate?.(`/dashboard/proyecto/${effectiveId}/clips`);
   };
 
+  /**
+   * Copia el enlace de YouTube. Está aquí porque cuando el servidor no puede leer
+   * los subtítulos, lo que el usuario necesita es ir a por el archivo: sin el
+   * enlace a mano, el aviso le pedía subir algo sin decirle de dónde sacarlo.
+   */
+  const copiarEnlaceYoutube = async () => {
+    const url = proyecto?.url_youtube;
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Enlace copiado al portapapeles');
+    } catch {
+      toast.error('No se ha podido copiar. Ábrelo y cópialo a mano.');
+    }
+  };
+
   // Copy full transcript to clipboard
   const copyTranscript = () => {
     if (!transcriptData) return;
@@ -1776,6 +1792,43 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                   <div className="rounded-xl bg-[#0e0e1c]/70 border border-amber-700/30 p-3.5 text-xs text-slate-300 leading-relaxed">
                     <strong className="text-white">Solución gratuita e inmediata:</strong> sube el archivo de audio o vídeo y lo transcribimos con Whisper (motor de IA). Funciona con <strong className="text-white">cualquier</strong> vídeo y te da marcas de tiempo por palabra, igual que el resto del pipeline.
                   </div>
+
+                  {proyecto?.url_youtube && (
+                    <div className="rounded-xl border border-slate-700/60 bg-[#0e0e1c]/50 p-3.5">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Paso 1 · Consigue el archivo
+                      </p>
+                      <p
+                        className="mt-1.5 truncate text-sm font-medium text-slate-200"
+                        title={proyecto.titulo || displayTitle}
+                      >
+                        {proyecto.titulo || displayTitle}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <a
+                          href={proyecto.url_youtube}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-[#141424] px-3.5 py-2 text-xs font-bold text-slate-200 transition-colors hover:border-red-500/60 hover:text-white"
+                        >
+                          <Youtube className="h-3.5 w-3.5 fill-red-500 text-red-500" />
+                          <span>Abrir en YouTube</span>
+                          <ExternalLink className="h-3 w-3 text-slate-500" />
+                        </a>
+                        <button
+                          onClick={copiarEnlaceYoutube}
+                          className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 bg-[#141424] px-3.5 py-2 text-xs font-bold text-slate-200 transition-colors hover:border-slate-400 hover:text-white"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          <span>Copiar enlace</span>
+                        </button>
+                      </div>
+                      <p className="mt-2.5 text-[11px] leading-relaxed text-slate-500">
+                        Paso 2 · Descárgalo con la herramienta que uses habitualmente y súbelo
+                        con el botón de aquí abajo.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex flex-col sm:flex-row gap-3">
                     {ytBlock.tipo === 'bloqueado' && (

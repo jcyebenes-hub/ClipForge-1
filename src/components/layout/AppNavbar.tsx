@@ -67,10 +67,10 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
   return (
     <>
       <header className="sticky top-0 z-40 w-full bg-[#0d0d18]/90 backdrop-blur-md border-b border-purple-900/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Left: Logo & Core Navigation */}
-            <div className="flex items-center gap-8">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-8">
               <button
                 onClick={() => handleNav('/dashboard')}
                 className="flex items-center gap-2.5 group focus:outline-none focus:ring-2 focus:ring-purple-500 rounded-lg p-1"
@@ -81,7 +81,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                     <Sparkles className="w-1.5 h-1.5 text-slate-950" />
                   </div>
                 </div>
-                <span className="font-extrabold text-lg tracking-tight text-white flex items-center gap-1 font-['Plus_Jakarta_Sans',sans-serif]">
+                <span className="font-extrabold text-base sm:text-lg tracking-tight text-white flex items-center gap-1 font-['Plus_Jakarta_Sans',sans-serif]">
                   Clip<span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-300 to-cyan-400">Forge</span>
                 </span>
               </button>
@@ -147,7 +147,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
             </div>
 
             {/* Right: Language Switcher + YouTube + Create CTA + User Menu */}
-            <div className="flex items-center gap-3">
+            <div className="flex flex-shrink-0 items-center gap-1.5 sm:gap-3">
               {/* Menú móvil: el nav de arriba es `hidden sm:flex` y en el teléfono
                   no se ve, así que sin este botón no se puede navegar. */}
               <button
@@ -163,7 +163,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
               <KoFiTopButton />
 
               {/* Language Switcher */}
-              <div className="inline-flex items-center p-1 rounded-xl bg-[#141424] border border-purple-900/40">
+              <div className="hidden sm:inline-flex items-center p-1 rounded-xl bg-[#141424] border border-purple-900/40">
                 <button
                   onClick={() => setIdioma('es')}
                   className={`px-2 py-0.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -224,7 +224,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                 <button
                   id="user-menu-btn"
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex items-center gap-2.5 p-1.5 pl-2 rounded-xl bg-[#141424] hover:bg-[#1c1c30] border border-purple-900/40 transition-all text-slate-200 hover:text-white"
+                  className="flex items-center gap-1.5 sm:gap-2.5 p-1 sm:p-1.5 sm:pl-2 rounded-xl bg-[#141424] hover:bg-[#1c1c30] border border-purple-900/40 transition-all text-slate-200 hover:text-white"
                 >
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-xs font-bold text-white uppercase shadow-sm">
                     {displayName.charAt(0)}
@@ -232,7 +232,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                   <span className="hidden md:inline-block text-xs font-semibold max-w-[120px] truncate">
                     {displayName}
                   </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  <ChevronDown className="hidden sm:block w-3.5 h-3.5 text-slate-400" />
                 </button>
 
                 {dropdownOpen && (
@@ -364,6 +364,32 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                   <span>{etiqueta}</span>
                 </button>
               ))}
+
+              <div className="flex items-center justify-between gap-3 border-t border-purple-900/30 px-3.5 pb-1 pt-3">
+                <span className="text-xs font-bold text-slate-400">Idioma</span>
+                <div className="inline-flex items-center rounded-xl border border-purple-900/40 bg-[#141424] p-1">
+                  <button
+                    onClick={() => setIdioma('es')}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                      idioma === 'es'
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    ES
+                  </button>
+                  <button
+                    onClick={() => setIdioma('en')}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                      idioma === 'en'
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    EN
+                  </button>
+                </div>
+              </div>
             </nav>
           )}
         </div>

@@ -3,6 +3,16 @@ import { Radar, Loader2, AlertTriangle, Search, Copy, Check, TrendingUp, Clock, 
 import { toast } from 'sonner';
 import { guardarReceta } from '../../../../lib/receta';
 import { avisarNoEspanol } from '../../../../lib/idiomaTitulo';
+import {
+  ordenarCanales,
+  siguienteOrden,
+  flechaOrden,
+  COLUMNAS_CANAL,
+  CAMPO_POR_DEFECTO,
+  DIRECCION_POR_DEFECTO,
+  type CampoOrdenCanal,
+  type DireccionOrden,
+} from '../../../../lib/ordenarCanales';
 import { useAuth } from '../../../../context/AuthContext';
 import { grado, type NombreMetrica } from '../../../../lib/analisisYoutube';
 
@@ -42,6 +52,19 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
   const [palabraClave, setPalabraClave] = useState('');
   const [dias, setDias] = useState(90);
   const [mercado, setMercado] = useState<Mercado>('ES');
+  /**
+   * Orden de la tabla de canales. Arranca en crecimiento diario, que es el orden
+   * con el que ya venía el informe, así que al entrar no cambia nada: solo cambia
+   * cuando se pincha una cabecera.
+   */
+  const [ordenCanales, setOrdenCanales] = useState<{
+    campo: CampoOrdenCanal;
+    direccion: DireccionOrden;
+  }>({
+    campo: CAMPO_POR_DEFECTO,
+    direccion: DIRECCION_POR_DEFECTO,
+  });
+
   /** Búsquedas que le quedan hoy al usuario. null = todavía no ha buscado. */
   const [restantes, setRestantes] = useState<number | null>(null);
   const [soloShorts, setSoloShorts] = useState(true);
@@ -333,15 +356,27 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
                 <table className="w-full text-xs sm:text-sm">
                   <thead>
                     <tr className="text-left text-[11px] uppercase tracking-wider text-slate-500">
-                      <th className="pb-2 pr-3 font-semibold">Canal</th>
-                      <th className="pb-2 pr-3 font-semibold">Subs</th>
-                      <th className="pb-2 pr-3 font-semibold">Subs/día</th>
-                      <th className="pb-2 pr-3 font-semibold">Vistas media</th>
-                      <th className="pb-2 font-semibold">Rendim. vídeo</th>
+                      {COLUMNAS_CANAL.map(({ campo, etiqueta }, i) => (
+                        <th
+                          key={campo}
+                          className={`pb-2 font-semibold ${i < COLUMNAS_CANAL.length - 1 ? 'pr-3' : ''}`}
+                        >
+                          <button
+                            onClick={() => setOrdenCanales((actual) => siguienteOrden(actual, campo))}
+                            title={`Ordenar por ${etiqueta.toLowerCase()}`}
+                            className="flex cursor-pointer items-center gap-1 transition-colors hover:text-emerald-300"
+                          >
+                            <span>{etiqueta}</span>
+                            <span className={flechaOrden(ordenCanales, campo) ? 'text-emerald-400' : 'text-slate-700'}>
+                              {flechaOrden(ordenCanales, campo) || '↕'}
+                            </span>
+                          </button>
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {informe.canales.map((c) => (
+                    {ordenarCanales(informe.canales, ordenCanales.campo, ordenCanales.direccion).map((c) => (
                       <tr key={c.id} className="border-t border-slate-800/70">
                         <td className="py-2 pr-3 font-medium text-slate-200">{c.nombre}</td>
                         <td className="py-2 pr-3 text-slate-300">{c.subs.toLocaleString('es-ES')}</td>

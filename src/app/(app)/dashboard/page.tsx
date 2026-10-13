@@ -21,6 +21,7 @@ import {
 import { useAuth } from '../../../context/AuthContext';
 import { useYouTube , YOUTUBE_UPLOAD_HABILITADO } from '../../../context/YouTubeAuthContext';
 import { TarjetaProyecto } from '../../../components/proyecto/TarjetaProyecto';
+import { AgenteHazloTu } from '../../../components/agente/AgenteHazloTu';
 import { supabase } from '../../../lib/supabase/client';
 import type { Proyecto } from '../../../lib/supabase/types';
 import { toast } from 'sonner';
@@ -178,6 +179,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             </button>
           </div>
         </div>
+
+        <AgenteHazloTu
+          userId={user?.id}
+          plan={profile?.plan}
+          supabaseListo={isSupabaseConfigured}
+          onNavigate={onNavigate}
+        />
 
         {/* YouTube Channel Integration Card */}
         <div className="p-5 rounded-2xl bg-gradient-to-r from-[#14101e] via-[#161224] to-[#121222] border border-red-900/30 shadow-xl shadow-black/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">

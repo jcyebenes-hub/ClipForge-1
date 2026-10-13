@@ -1807,6 +1807,11 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
               {/* Aviso cuando YouTube no nos deja leer los subtítulos: empujamos la subida (Whisper) */}
               {ytBlock && !transcribing && (
                 <div className="rounded-2xl border border-amber-600/40 bg-amber-950/25 p-5 space-y-4">
+                  {sessionStorage.getItem('clipforge_agente_aviso') === effectiveId && (
+                    <p className="text-xs leading-relaxed text-amber-100">
+                      El agente se ha parado aquí. No baja el vídeo. Sube el archivo en el paso 3 y sigue la transcripción.
+                    </p>
+                  )}
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                     <div>

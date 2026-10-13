@@ -339,6 +339,11 @@ export const RegistroPage: React.FC<RegistroPageProps> = ({ onNavigate }) => {
             >
               Iniciar sesión
             </button>
+            <p className="mt-3">
+              <button type="button" onClick={() => onNavigate?.('/privacidad')} className="text-slate-500 underline hover:text-slate-300">
+                Política de privacidad
+              </button>
+            </p>
           </div>
         </div>
       </div>

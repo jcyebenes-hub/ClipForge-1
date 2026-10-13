@@ -325,6 +325,17 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
 
                     <div className="pt-1 border-t border-slate-800/80">
                       <button
+                        id="privacidad-btn"
+                        onClick={() => {
+                          setDropdownOpen(false);
+                          handleNav('/privacidad');
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 text-left transition-colors"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Política de privacidad</span>
+                      </button>
+                      <button
                         id="eliminar-cuenta-btn"
                         onClick={() => {
                           setDropdownOpen(false);
@@ -377,6 +388,17 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
                 </button>
               ))}
 
+              <button
+                id="menu-movil-privacidad"
+                onClick={() => {
+                  setMenuMovilAbierto(false);
+                  handleNav('/privacidad');
+                }}
+                className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-semibold text-slate-300 hover:bg-slate-900/50"
+              >
+                <ShieldCheck className="h-4 w-4 text-slate-400" />
+                <span>Política de privacidad</span>
+              </button>
               {user && (
                 <button
                   id="menu-movil-eliminar-cuenta"

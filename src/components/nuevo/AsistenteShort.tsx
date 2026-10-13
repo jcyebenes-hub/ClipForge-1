@@ -80,7 +80,7 @@ export function AsistenteShort({ clip, onCerrar, onGenerar }: Props) {
       onClick={onCerrar}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-purple-900/50 bg-[#0d0d1a] p-6 shadow-2xl"
+        className="max-h-[90dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-purple-900/50 bg-[#0d0d1a] p-5 shadow-2xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <p className="text-xs font-semibold uppercase tracking-wide text-purple-400">

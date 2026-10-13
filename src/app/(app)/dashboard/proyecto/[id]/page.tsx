@@ -2537,7 +2537,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
         {/* MODAL: subir el vídeo original para poder cortar/descargar (proyectos de YouTube) */}
         {pidiendoVideoOriginal && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-[#141428] border border-purple-800/60 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+            <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-purple-800/60 bg-[#141428] p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 sm:p-6 sm:space-y-5">
               <div className="flex items-center justify-between border-b border-purple-900/40 pb-4">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-purple-600/20 text-pink-400 flex items-center justify-center">
@@ -2742,7 +2742,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
         {/* MODAL: EDIT CLIP MODAL */}
         {editingClip && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-[#141428] border border-purple-800/60 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+            <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-purple-800/60 bg-[#141428] p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 sm:p-6 sm:space-y-5">
               
               <div className="flex items-center justify-between border-b border-purple-900/40 pb-4">
                 <div className="flex items-center gap-2.5">

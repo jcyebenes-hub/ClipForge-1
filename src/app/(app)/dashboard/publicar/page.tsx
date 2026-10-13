@@ -550,7 +550,7 @@ export default function PublicarPage({ onNavigate }: PublicarPageProps) {
       {/* Schedule Post Modal */}
       {scheduleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#101020] border border-purple-900/40 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+          <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-3xl border border-purple-900/40 bg-[#101020] shadow-2xl flex flex-col">
             <div className="p-5 border-b border-purple-900/30 flex items-center justify-between">
               <h2 className="text-base font-black text-white flex items-center gap-2">
                 <Clock className="w-4 h-4 text-purple-400" />

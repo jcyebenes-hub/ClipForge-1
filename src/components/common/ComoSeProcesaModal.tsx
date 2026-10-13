@@ -23,7 +23,7 @@ export const ComoSeProcesaModal: React.FC<ComoSeProcesaModalProps> = ({ isOpen, 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
-        className="relative w-full max-w-2xl bg-[#0f0f1c] border border-purple-800/50 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-2xl max-h-[90dvh] overflow-y-auto overscroll-contain rounded-3xl border border-purple-800/50 bg-[#0f0f1c] p-5 shadow-2xl sm:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glow effect */}

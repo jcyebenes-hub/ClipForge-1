@@ -105,7 +105,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
           onClick={() => setPlanModal(null)}
         >
           <div
-            className="w-full max-w-lg rounded-t-3xl border border-purple-800/50 bg-[#12102a] p-6 shadow-2xl sm:rounded-3xl"
+            className="max-h-[90dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl border border-purple-800/50 bg-[#12102a] p-5 shadow-2xl sm:rounded-3xl sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -128,12 +128,12 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
               </button>
             </div>
 
-            <p className="mt-4 text-sm leading-relaxed text-slate-300">
+            <p className="mt-3 text-sm leading-relaxed text-slate-300 sm:mt-4">
               Todavía no tenemos pagos automáticos, así que la activación se hace a
               mano. Por eso el precio es bajo: estás ayudando a arrancar el proyecto.
             </p>
 
-            <ol className="mt-4 space-y-3 text-sm text-slate-200">
+            <ol className="mt-3 space-y-2.5 text-sm text-slate-200 sm:mt-4 sm:space-y-3">
               <li className="flex gap-3">
                 <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-purple-700 text-xs font-bold text-white">1</span>
                 <span>
@@ -163,14 +163,14 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
               </li>
             </ol>
 
-            <div className="mt-5 rounded-xl border border-amber-900/40 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200/80">
+            <div className="mt-4 rounded-xl border border-amber-900/40 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200/80 sm:mt-5">
               Si prefieres no pagar, el plan Gratis sigue siendo completo: solo lleva
               marca de agua y 60 minutos de material al mes.
             </div>
 
             <button
               onClick={() => setPlanModal(null)}
-              className="mt-5 w-full rounded-xl bg-purple-600 py-3 text-sm font-bold text-white transition hover:bg-purple-500"
+              className="mt-4 w-full rounded-xl bg-purple-600 py-3 text-sm font-bold text-white transition hover:bg-purple-500 sm:mt-5"
             >
               Entendido
             </button>
@@ -371,7 +371,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
       {/* Legal & Contact Modals */}
       {activeModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#101020] border border-purple-800/60 rounded-2xl w-full max-w-lg p-6 relative shadow-2xl">
+          <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-purple-800/60 bg-[#101020] p-5 shadow-2xl relative sm:p-6">
             <button
               onClick={() => setActiveModal(null)}
               className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"

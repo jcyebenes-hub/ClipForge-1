@@ -43,7 +43,7 @@ export const CopyrightNoticeModal: React.FC<CopyrightNoticeModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-[#0e0e18] border border-purple-800/50 rounded-2xl p-6 md:p-7 shadow-2xl shadow-purple-950/80 space-y-6 text-slate-100">
+      <div className="relative w-full max-w-lg max-h-[90dvh] overflow-y-auto overscroll-contain rounded-2xl border border-purple-800/50 bg-[#0e0e18] p-5 shadow-2xl shadow-purple-950/80 space-y-5 text-slate-100 md:p-7 md:space-y-6">
         {/* Header with Shield Icon */}
         <div className="flex items-start gap-4">
           <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 shrink-0">

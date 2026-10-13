@@ -26,7 +26,7 @@ export const ConfirmProcessModal: React.FC<ConfirmProcessModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
-        className="relative w-full max-w-md bg-[#0f0f1c] border border-purple-800/60 rounded-3xl p-6 sm:p-7 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain rounded-3xl border border-purple-800/60 bg-[#0f0f1c] p-5 shadow-2xl sm:p-7"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glow behind */}

@@ -86,8 +86,8 @@ export const Hero: React.FC<HeroProps> = ({ onStartFree, onWatchDemo }) => {
 
             {/* Subtitle */}
             <p className="text-lg sm:text-xl text-slate-300 max-w-2xl font-normal leading-relaxed mb-8">
-              La IA recorta, subtitula y publica tus vídeos automáticamente en TikTok, YouTube e Instagram. 
-              <span className="text-white font-medium"> 100 % gratis.</span>
+              Recorta y subtitula en tu navegador. Descargas el Short y lo publicas tú en TikTok, YouTube o Instagram.
+              <span className="text-white font-medium"> El plan gratis lleva marca de agua.</span>
             </p>
 
             {/* Fast Interactive Action Box */}

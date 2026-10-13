@@ -6,14 +6,16 @@
  *     como respaldo offline). Así nunca se sirve una versión vieja de la app desde caché.
  */
 
-const CACHE_NAME = 'clipforge-cache-v2';
+const CACHE_NAME = 'clipforge-cache-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/favicon.svg',
   '/manifest.json',
-  '/icons/icon-192.svg',
-  '/icons/icon-512.svg',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/maskable-192.png',
+  '/icons/maskable-512.png',
 ];
 
 self.addEventListener('install', (event) => {

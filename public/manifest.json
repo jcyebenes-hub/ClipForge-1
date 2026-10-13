@@ -1,48 +1,54 @@
 {
   "name": "ClipForge - Creador de Shorts Virales con IA",
   "short_name": "ClipForge",
-  "description": "Convierte vídeos largos en Shorts, Reels y TikToks virales con IA y procesamiento en navegador.",
+  "description": "Recorta y subtitula vídeos largos en Shorts desde el navegador. La subida a TikTok, YouTube e Instagram la haces tú.",
   "start_url": "/",
   "id": "/",
   "display": "standalone",
   "background_color": "#0a0a12",
   "theme_color": "#0a0a12",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-192.svg",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.svg",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "categories": ["video", "productivity", "multimedia", "social"],
+  "categories": ["video", "productivity", "multimedia"],
   "shortcuts": [
     {
       "name": "Nuevo Proyecto",
       "short_name": "Nuevo",
-      "description": "Crea clips virales desde un vídeo o enlace de YouTube",
+      "description": "Crea clips desde un vídeo o un enlace de YouTube",
       "url": "/dashboard/nuevo",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "Publicar Clips",
-      "short_name": "Publicar",
-      "description": "Gestiona y programa tus publicaciones en redes",
+      "name": "Calendario",
+      "short_name": "Calendario",
+      "description": "Organiza qué subes y cuándo",
       "url": "/dashboard/publicar",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

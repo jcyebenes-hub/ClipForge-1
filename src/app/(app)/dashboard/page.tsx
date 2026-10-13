@@ -187,21 +187,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white">Publicación Directa en YouTube Shorts</h3>
+                <h3 className="text-sm font-bold text-white">Publicar en YouTube Shorts</h3>
                 {isConnected ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-950/80 text-emerald-400 text-[10px] font-bold border border-emerald-800/40">
                     <CheckCircle2 className="w-3 h-3" /> Canal Vinculado
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 text-[10px] font-bold">
-                    OAuth 2.0 Desconectado
+                  <span className="px-2 py-0.5 rounded-md bg-amber-950/70 text-amber-400 text-[10px] font-bold border border-amber-800/40">
+                    Subida manual
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
                 {isConnected
                   ? `Canal activo: "${channel?.channelTitle || 'Mi Canal'}" — Sube tus clips 9:16 con un solo clic en modo Público, No listado o Borrador.`
-                  : 'Conecta tu cuenta de YouTube para publicar tus clips virales generados directamente desde el panel.'}
+                  : 'Todavía no subimos solos a tu canal: hace falta un permiso de Google que no tenemos activo. Descarga el Short y súbelo desde aquí — título, descripción y hashtags se copian con un toque.'}
               </p>
             </div>
           </div>
@@ -240,7 +240,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                 <Youtube className="w-4 h-4 fill-white" />
                 <span>Conectar YouTube</span>
               </button>
-            ) : null}
+            ) : (
+              <button
+                id="dashboard-open-studio-btn"
+                onClick={() => window.open('https://studio.youtube.com/channel/UC/upload', '_blank', 'noopener')}
+                className="w-full md:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black shadow-lg shadow-red-950/60 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              >
+                <Youtube className="w-4 h-4 fill-white" />
+                <span>Abrir YouTube Studio</span>
+                <ExternalLink className="w-3 h-3 opacity-70" />
+              </button>
+            )}
           </div>
         </div>
 

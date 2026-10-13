@@ -864,7 +864,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
         }
         if (msg === '__TIMEOUT_AUDIO__' || file.size > 25 * 1024 * 1024) {
           throw new Error(
-            `El archivo pesa ${(file.size / 1048576).toFixed(0)} MB. En el descargador elige 720p, o solo el audio, y vuelve a subirlo.`
+            `El archivo pesa ${(file.size / 1048576).toFixed(0)} MB. Prueba con un vídeo más corto o solo el audio, y vuelve a subirlo.`
           );
         }
       }
@@ -1272,43 +1272,12 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     return false;
   };
 
-  /**
-   * Descargador externo. Está en una constante porque se usa en dos sitios: el
-   * modal de subir el vídeo original y el aviso de que YouTube bloquea los
-   * subtítulos. Si un día cambia, se cambia una vez.
-   */
-  const DESCARGADOR_YT = 'https://www.ytultra.com/es/youtube-video-downloader/';
-
   const marcarEnlaceCopiado = () => {
     setEnlaceCopiado(true);
     setTimeout(() => setEnlaceCopiado(false), 2500);
   };
 
-  // Abre el descargador dejando el enlace YA copiado: el usuario solo pega (Ctrl+V)
-  // En móvil no hay Ctrl+V: las instrucciones cambian según el dispositivo.
-  const esMovil = () =>
-    typeof window !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-  // El enlace se abre con una etiqueta <a>, no con window.open: en el móvil
-  // una pestaña abierta por script se bloquea y, encima, window.open('noopener')
-  // devuelve null aunque la página sí se haya abierto.
-  const alAbrirDescargador = () => {
-    const enlace = proyecto?.url_youtube || '';
-    if (!enlace) return;
-    const ok = copiarEnElGesto(enlace);
-    if (ok) {
-      marcarEnlaceCopiado();
-      toast.success(
-        esMovil()
-          ? 'Enlace copiado. En el descargador, mantén pulsado el cuadro y elige Pegar.'
-          : 'Enlace copiado. En el descargador, pega con Ctrl+V y pulsa Descargar.'
-      );
-    } else {
-      toast('No se ha copiado solo. El enlace está en el cuadro: mantenlo pulsado y elige Copiar.');
-    }
-  };
-
-  // Sube el archivo de vídeo original (descargado por el usuario) para poder cortar y
+  // Sube el archivo de vídeo original (el usuario lo aporta) para poder cortar y
   // descargar los clips. YouTube no permite descargarlo desde el servidor, así que el
   // usuario lo obtiene por su cuenta (p. ej. en un descargador) y lo sube aquí; se guarda
   // como {user}/{proyecto}/original.mp4, que es lo que usa la página de clips para cortar.
@@ -1316,7 +1285,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const explicarErrorSubida = (status: number, texto: string): string => {
     const t = (texto || '').toLowerCase();
     if (t.includes('maximum allowed size') || t.includes('too large') || t.includes('entity too large')) {
-      return 'El archivo supera el tamaño máximo del almacenamiento (50 MB por defecto). Elige en el descargador una calidad menor (p. ej. 720p) o un vídeo más corto e inténtalo otra vez.';
+      return 'El archivo supera el tamaño máximo del almacenamiento (50 MB por defecto). Prueba con un vídeo más corto o de menos calidad e inténtalo otra vez.';
     }
     if (t.includes('row-level security') || t.includes('accessdenied') || t.includes('unauthorized') || status === 401 || status === 403) {
       return 'Tu sesión no tiene permiso para guardar en esta carpeta. Recarga la página, vuelve a iniciar sesión e inténtalo de nuevo.';
@@ -1866,45 +1835,22 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                       </div>
                       <div className="mt-4 border-t border-slate-700/50 pt-3.5">
                         <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
-                          Paso 2 · Ábrelo en el descargador y baja el MP4
+                          Paso 2 · El archivo tiene que ser tuyo
+                        </p>
+                        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+                          YouTube bloquea la descarga (error 403). ClipForge no puede bajar el vídeo.
+                          Si es un vídeo de tu canal, descárgalo desde YouTube Studio.
+                          Si ya lo tienes en el teléfono, sáltalo y usa el paso 3.
                         </p>
                         <a
-                          href={DESCARGADOR_YT}
+                          href="https://studio.youtube.com/"
                           target="_blank"
                           rel="noopener noreferrer"
-                          onClick={alAbrirDescargador}
-                          className="mt-2.5 inline-flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-cyan-700/50 bg-[#0e0e1c] px-4 py-3 text-sm font-bold text-cyan-100 no-underline transition-all hover:border-cyan-500/60 hover:bg-[#15152a] sm:w-auto"
+                          className="mt-2.5 inline-flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-slate-600 bg-[#0e0e1c] px-4 py-3 text-sm font-bold text-slate-100 no-underline transition-all hover:border-slate-400 sm:w-auto"
                         >
-                          <span>Abrir descargador</span>
-                          <ExternalLink className="h-4 w-4 shrink-0 text-cyan-300" />
+                          <span>Abrir YouTube Studio</span>
+                          <ExternalLink className="h-4 w-4 shrink-0 text-slate-400" />
                         </a>
-                        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-                          {esMovil() ? (
-                            <>
-                              En la página que se abre,{' '}
-                              <strong className="text-slate-200">mantén pulsado y elige Pegar</strong>.
-                              Pulsa <strong className="text-slate-200">Download</strong> y escoge MP4.
-                            </>
-                          ) : (
-                            <>
-                              En la página que se abre,{' '}
-                              <strong className="text-slate-200">pega con Ctrl+V</strong> y pulsa{' '}
-                              <strong className="text-slate-200">Download</strong>. Escoge MP4.
-                            </>
-                          )}
-                        </p>
-                        <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-                          ¿No funciona? Prueba con{' '}
-                          <a
-                            href="https://cobalt.tools/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-cyan-300 hover:underline"
-                          >
-                            cobalt.tools
-                          </a>
-                          : mismo procedimiento.
-                        </p>
                       </div>
                     </div>
                   )}
@@ -2645,47 +2591,25 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                 </div>
               </div>
 
-              {/* PASO 2: abrir el descargador (dejando el enlace ya copiado) */}
+              {/* PASO 2: el archivo lo aporta el usuario; YouTube no deja bajarlo desde aquí */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-cyan-300">
                   <span className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center text-[10px] shrink-0">2</span>
-                  Ábrelo en el descargador y baja el MP4
+                  Consigue el archivo sin saltarte a YouTube
                 </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  YouTube bloquea la descarga (error 403). Esta app no baja el vídeo.
+                  Si es tuyo, descárgalo en YouTube Studio. Si ya está en el teléfono, pasa al paso 3.
+                </p>
                 <a
-                  href={DESCARGADOR_YT}
+                  href="https://studio.youtube.com/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={alAbrirDescargador}
-                  className="w-full inline-flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl text-sm font-bold bg-[#0e0e1c] border border-purple-700/50 text-purple-100 no-underline hover:bg-[#15152a] hover:border-purple-500/60 transition-all cursor-pointer"
+                  className="w-full inline-flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl text-sm font-bold bg-[#0e0e1c] border border-slate-600 text-slate-100 no-underline hover:border-slate-400 transition-all cursor-pointer"
                 >
-                  <span>Abrir descargador</span>
-                  <ExternalLink className="w-4 h-4 text-cyan-300 shrink-0" />
+                  <span>Abrir YouTube Studio</span>
+                  <ExternalLink className="w-4 h-4 text-slate-400 shrink-0" />
                 </a>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  {esMovil() ? (
-                    <>
-                      En la página que se abre, <strong className="text-slate-200">mantén pulsado y elige Pegar</strong>.
-                      Pulsa <strong className="text-slate-200">Download</strong> y escoge MP4.
-                    </>
-                  ) : (
-                    <>
-                      En la página que se abre, <strong className="text-slate-200">pega con Ctrl+V</strong> y pulsa{' '}
-                      <strong className="text-slate-200">Download</strong>. Escoge MP4.
-                    </>
-                  )}
-                </p>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  ¿No funciona? Prueba con{' '}
-                  <a
-                    href="https://cobalt.tools/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-cyan-300 hover:underline"
-                  >
-                    cobalt.tools
-                  </a>
-                  : mismo procedimiento.
-                </p>
               </div>
 
               {/* PASO 3: subir el archivo (arrastrar o clicar) */}

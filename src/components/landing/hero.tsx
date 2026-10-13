@@ -5,7 +5,6 @@ import {
   Play, 
   Youtube, 
   Flame, 
-  CheckCircle2, 
   TrendingUp, 
   Volume2, 
   Share2, 
@@ -68,10 +67,10 @@ export const Hero: React.FC<HeroProps> = ({ onStartFree, onWatchDemo }) => {
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-900/40 border border-purple-700/50 shadow-inner mb-6 backdrop-blur-sm">
               <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
               <span className="text-xs font-semibold text-purple-200 tracking-wide">
-                Novedad: Motor IA Whisper v3 + Auto-Face Tracking 9:16
+                Subtítulos con Whisper y recorte vertical 9:16
               </span>
               <span className="hidden sm:inline-block text-[11px] px-2 py-0.5 rounded-full bg-cyan-400/20 text-cyan-300 font-bold">
-                100% Gratis
+                Empieza gratis
               </span>
             </div>
 
@@ -213,7 +212,7 @@ export const Hero: React.FC<HeroProps> = ({ onStartFree, onWatchDemo }) => {
               <div>
                 <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Detector Viral IA</p>
                 <p className="text-xs font-bold text-white flex items-center gap-1">
-                  Puntuación Viral: <span className="text-cyan-400">98/100 🔥</span>
+                  Fragmentos con título <span className="text-cyan-400">gancho</span>
                 </p>
               </div>
             </div>
@@ -224,7 +223,7 @@ export const Hero: React.FC<HeroProps> = ({ onStartFree, onWatchDemo }) => {
               </div>
               <div>
                 <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Subtítulos Whisper</p>
-                <p className="text-xs font-bold text-slate-100">Auto-sincronizado 100%</p>
+                <p className="text-xs font-bold text-slate-100">Con los tiempos del audio</p>
               </div>
             </div>
 
@@ -292,7 +291,7 @@ export const Hero: React.FC<HeroProps> = ({ onStartFree, onWatchDemo }) => {
                 <div className="relative z-10 pt-10 px-4 flex items-center justify-between text-xs text-white">
                   <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10">
                     <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                    <span className="font-semibold text-[11px]">Clip #03 • Gancho 98%</span>
+                    <span className="font-semibold text-[11px]">Ejemplo · clip 9:16</span>
                   </div>
                   <div className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center border border-white/10">
                     <Volume2 className="w-3.5 h-3.5 text-white" />
@@ -354,8 +353,7 @@ export const Hero: React.FC<HeroProps> = ({ onStartFree, onWatchDemo }) => {
                     <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-cyan-400 flex items-center justify-center text-[10px] font-bold text-white">
                       CF
                     </div>
-                    <span className="text-xs font-bold text-white">@clipforge_ai</span>
-                    <CheckCircle2 className="w-3 h-3 text-cyan-400" />
+                    <span className="text-xs font-bold text-white">Ejemplo de un Short</span>
                   </div>
                   <p className="text-[11px] text-slate-300 line-clamp-1">
                     Exportado en 9:16 con subtítulos automáticos ⚡

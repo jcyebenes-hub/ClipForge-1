@@ -93,7 +93,7 @@ export async function comprobarCuotaMensual(
     mensaje: permitido
       ? undefined
       : `Has alcanzado el límite del plan gratuito (${limite} minutos al mes). ` +
-        `Llevas ${usados} minutos este mes. Con el plan Pro no hay límite y se quita la marca de agua.`,
+        `Llevas ${usados} minutos este mes. El plan Creador quita la marca de agua.`,
   };
 }
 

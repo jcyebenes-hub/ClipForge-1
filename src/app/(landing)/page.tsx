@@ -305,12 +305,12 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
                 {isProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-cyan-300" />
-                    <span>Analizando voz, rostros y ganchos con IA...</span>
+                    <span>Esto es un ejemplo, no se está analizando tu vídeo...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 text-cyan-200" />
-                    <span>Analizar y Generar Clips Virales (Gratis)</span>
+                    <span>Ver un ejemplo (no analiza el enlace)</span>
                   </>
                 )}
               </button>
@@ -322,9 +322,9 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>¡3 Clips Virales Extraídos con Éxito!</span>
+                    <span>Ejemplo ilustrado, no es tu vídeo</span>
                   </div>
-                  <span className="text-xs text-slate-400">Procesado en 1.8s</span>
+                  <span className="text-xs text-slate-400">No se ha procesado nada</span>
                 </div>
 
                 <div className="space-y-3">

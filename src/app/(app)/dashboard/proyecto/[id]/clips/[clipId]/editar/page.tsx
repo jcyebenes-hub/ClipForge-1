@@ -1732,7 +1732,7 @@ export default function ClipEditarPage({
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Inserta metraje viral en la parte inferior para multiplicar la retención de audiencia.
+                  Pone abajo otro tramo. Si es automático, es un trozo al azar del mismo vídeo, no una escena detectada.
                 </p>
               </div>
 

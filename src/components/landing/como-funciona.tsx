@@ -49,17 +49,17 @@ export const ComoFunciona: React.FC = () => {
       number: '02',
       title: 'La IA detecta los momentos virales y añade mejoras',
       description:
-        'Nuestros algoritmos analizan los picos de retención, las emociones de voz y el dinamismo para recortar las mejores partes. Añade automáticamente subtítulos con estilo, encuadre vertical 9:16 y ganchos de alta conversión.',
+        'Lee la transcripción y propone fragmentos con un título gancho. No mide la retención real ni las emociones de la voz: no tenemos esos datos. Los subtítulos salen del audio y el formato es vertical 9:16, centrado.',
       icon: Cpu,
       tag: 'Procesamiento IA',
-      detail: 'Encuadre vertical 9:16 + Whisper IA para subtítulos sin fallos.',
+      detail: 'Formato 9:16 centrado y subtítulos a partir del audio.',
       visual: (
         <div className="w-full h-48 bg-[#0d0d1a] rounded-xl p-4 border border-purple-900/40 flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 text-cyan-300 font-medium">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> 4 Clips Virales Generados
             </span>
-            <span className="text-[11px] text-slate-400">Puntuación: 98/100</span>
+            <span className="text-[11px] text-slate-400">Ejemplo, no es una medición</span>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
@@ -95,9 +95,9 @@ export const ComoFunciona: React.FC = () => {
     },
     {
       number: '03',
-      title: 'Descarga o publica en TikTok, Shorts y Reels',
+      title: 'Descarga el Short y súbelo tú',
       description:
-        'Exporta tus vídeos listos en alta resolución 1080p sin marcas de agua molestas o conéctate para programar y publicar con un solo clic directamente en tus canales favoritos.',
+        'Descargas el vídeo en vertical. En el plan Gratis lleva marca de agua. No publicamos en tu cuenta: el calendario guarda título, descripción y hashtags para que los copies al subir.',
       icon: Share2,
       tag: 'Exportación y Publicación',
       detail: 'Listo para TikTok, YouTube Shorts, Instagram Reels y Facebook.',

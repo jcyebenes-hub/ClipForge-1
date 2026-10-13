@@ -14,7 +14,7 @@ import { urlKoFi } from '../../lib/kofi';
  *     ausencia que un enlace roto. Se define en Render y en Cloudflare Pages
  *     (VITE_KOFI_URL=https://ko-fi.com/tuusuario) y requiere un redeploy.
  *
- *  2. CAPTURA DE CORREO para la lista de espera del plan Pro. Se guarda con
+ *  2. CAPTURA DE CORREO para novedades. Se guarda con
  *     trackEvent('correo_capturado'), que escribe en la tabla `eventos`.
  *     El correo se registra con trackEvent('correo_capturado'), que escribe en la
  *     tabla `eventos` (su política de inserción pública sí está aplicada,
@@ -129,8 +129,8 @@ export function ApoyarClipForge({ titulo, compacto = false, className = '' }: Pr
 
       <p className="text-xs leading-relaxed text-slate-400">
         No ponemos publicidad: estorba justo cuando vas a descargar tu clip. Si te resulta
-        útil, puedes invitarnos a un café o dejarnos tu correo para avisarte cuando salga el
-        plan Pro (sin marca de agua y sin límite mensual).
+        útil, puedes invitarnos a un café. El plan Creador, a 3 €, quita la marca de agua.
+        Si quieres, déjanos un correo para novedades.
       </p>
 
       {kofiUrl ? (
@@ -152,7 +152,7 @@ export function ApoyarClipForge({ titulo, compacto = false, className = '' }: Pr
 
       {estado === 'enviado' ? (
         <p className="text-xs font-medium text-emerald-400">
-          ¡Gracias! Te avisaremos en cuanto el plan Pro esté disponible.
+          Gracias. Si hay novedades, escribiremos a este correo.
         </p>
       ) : (
         <form onSubmit={enviar} className="flex flex-col gap-2 sm:flex-row">
@@ -171,7 +171,7 @@ export function ApoyarClipForge({ titulo, compacto = false, className = '' }: Pr
             type="submit"
             className="rounded-xl border border-purple-700/60 px-4 py-2 text-sm font-semibold text-purple-200 transition hover:bg-purple-900/30"
           >
-            Avísame del plan Pro
+            Avísame de novedades
           </button>
         </form>
       )}

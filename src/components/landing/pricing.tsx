@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 import { Check, Sparkles, Zap, Flame, Crown, ArrowRight, ShieldCheck, HelpCircle } from 'lucide-react';
 
@@ -8,7 +8,6 @@ interface PricingProps {
 
 export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
   const { ref, isVisible } = useIntersectionObserver({ threshold: 0.15 });
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
 
   const plans = [
     {
@@ -50,8 +49,7 @@ export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
         'TODO lo del plan Gratis',
         'SIN marca de agua',
         '300 minutos de material al mes (5 veces más)',
-        'Búsquedas de vídeos virales sin límite diario',
-        'Inicio de sesión con la huella del móvil',
+        '20 búsquedas de vídeos virales al día (el Gratis tiene 5)',
         'Cada función nueva, en cuanto se publica',
       ],
       missing: [],
@@ -102,39 +100,12 @@ export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
           <p className="text-base sm:text-lg text-slate-300">
             Empieza gratis y sin instalar nada: los vídeos se procesan en tu propio navegador. Pasa a Creador cuando quieras quitar la marca de agua.
           </p>
-
-          {/* Billing Toggle */}
-          <div className="mt-8 inline-flex items-center gap-3 bg-[#111122] p-1.5 rounded-2xl border border-purple-900/50 shadow-inner">
-            <button
-              onClick={() => setBillingCycle('monthly')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                billingCycle === 'monthly'
-                  ? 'bg-purple-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Pago Mensual
-            </button>
-            <button
-              onClick={() => setBillingCycle('yearly')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                billingCycle === 'yearly'
-                  ? 'bg-gradient-to-r from-purple-600 to-cyan-500 text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <span>Pago Anual</span>
-              <span className="px-1.5 py-0.5 rounded-full bg-cyan-400 text-slate-950 text-[10px] font-extrabold">
-                -20% AHORRO
-              </span>
-            </button>
-          </div>
         </div>
 
-        {/* 3 Pricing Cards Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+          {/* 3 Pricing Cards Grid */}
+        <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
           {plans.map((plan) => {
-            const price = billingCycle === 'yearly' ? plan.priceYearly : plan.priceMonthly;
+            const price = plan.priceMonthly;
 
             return (
               <div
@@ -182,11 +153,6 @@ export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
                     <span className="text-sm font-medium text-slate-400">
                       {price === 0 ? '/ siempre' : price < 0 ? '' : '/ mes'}
                     </span>
-                    {billingCycle === 'yearly' && price > 0 && (
-                      <span className="text-[11px] text-cyan-400 font-semibold ml-1">
-                        (facturado anualmente)
-                      </span>
-                    )}
                   </div>
 
                   {/* Features List */}
@@ -230,7 +196,7 @@ export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
 
                   <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 mt-3">
                     <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Sin permanencia • Cancela cuando quieras</span>
+                    <span>Sin cobro automático. Si pagas, es a mano.</span>
                   </div>
                 </div>
               </div>

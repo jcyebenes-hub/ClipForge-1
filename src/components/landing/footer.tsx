@@ -34,12 +34,12 @@ export const Footer: React.FC<FooterProps> = ({ onOpenTerms }) => {
             </a>
 
             <p className="text-slate-400 text-xs sm:text-sm leading-relaxed max-w-sm">
-              La plataforma de inteligencia artificial diseñada para que creadores, podcasters y marcas conviertan horas de contenido en Shorts, Reels y TikToks virales en segundos.
+              Recorta y subtitula vídeos largos en el navegador. La publicación en cada red la haces tú.
             </p>
 
             <div className="flex items-center gap-2 pt-2">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs text-slate-300 font-medium">Todos los motores de IA 100% operativos</span>
+              <span className="text-xs text-slate-300 font-medium">El corte se hace en tu navegador</span>
             </div>
           </div>
 

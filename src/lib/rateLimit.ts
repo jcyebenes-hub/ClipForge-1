@@ -146,7 +146,7 @@ export async function verificarRateLimit(
       restantes: 0,
       max: config.max,
       reseteoEnSegundos: segundosRestantes,
-      mensaje: `Has alcanzado el límite gratuito de ${config.max} ${config.nombreAccion}. Por favor espera ${tiempoTexto} o actualiza a un plan Pro.`,
+      mensaje: `Has alcanzado el límite gratuito de ${config.max} ${config.nombreAccion}. Espera ${tiempoTexto}.`,
     };
   }
 

@@ -15,7 +15,7 @@ export const Faq: React.FC = () => {
       question: '¿Es gratis de verdad?',
       icon: Sparkles,
       answer:
-        'Sí, 100% real. El plan Gratis de ClipForge te permite procesar y generar clips ilimitados utilizando los recursos de tu propio navegador web mediante aceleración WebAssembly y modelos locales optimizados. No te pediremos tarjeta de crédito para empezar a crear clips y descargarlos.',
+        'El plan Gratis no pide tarjeta. El corte se hace en tu navegador. Tiene dos límites reales: marca de agua y 60 minutos de material al mes. La transcripción no es local: el audio sale para convertirse en texto.',
     },
     {
       question: '¿Dónde se procesan los vídeos?',
@@ -33,7 +33,7 @@ export const Faq: React.FC = () => {
       question: '¿Necesito experiencia en edición?',
       icon: Video,
       answer:
-        'Absolutamente ninguna. ClipForge está diseñado para que cualquier persona pueda convertir un podcast, entrevista o gameplay en un clip viral en menos de 2 minutos. Solo tienes que pegar el enlace de YouTube o arrastrar el archivo de vídeo; la IA detecta los ganchos, centra el encuadre en 9:16 y genera los subtítulos dinámicos de forma automática.',
+        'No hace falta saber editar. Pegas un enlace de YouTube o subes el archivo, la app propone fragmentos con subtítulos y tú descargas el Short. El recorte vertical va centrado y quieto: no sigue la cara. La subida a TikTok, YouTube o Instagram la haces tú.',
     },
     {
       question: '¿Puedo publicar automáticamente?',

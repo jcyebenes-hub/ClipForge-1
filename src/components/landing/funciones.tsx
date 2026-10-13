@@ -35,12 +35,12 @@ export const Funciones: React.FC = () => {
       title: 'Curación automática',
       subtitle: 'Detecta los momentos de mayor retención y viralidad',
       description:
-        'La IA analiza cambios de entonación, risas, pausas dramáticas y momentos clave para extraer automáticamente los fragmentos con mayor probabilidad de convertirse en tendencia.',
+        'Lee la transcripción y señala fragmentos con un título gancho. No analiza la voz, las risas ni la retención real del vídeo.',
       icon: Sparkles,
       tag: 'Algoritmo Viral',
       beforeAfter: {
         beforeText: '1 vídeo plano de 60 min sin segmentar',
-        afterText: '4 clips virales con 98% de probabilidad de éxito',
+        afterText: 'Varios fragmentos propuestos, sin un porcentaje de éxito',
         beforeSvg: (
           <div className="w-full h-28 bg-[#090912] rounded-lg p-2.5 flex flex-col justify-center border border-rose-950/30">
             <div className="flex items-center justify-between text-[10px] text-rose-400 mb-1.5 font-semibold">
@@ -62,20 +62,20 @@ export const Funciones: React.FC = () => {
             <div className="w-full h-6 bg-slate-900 rounded flex items-center justify-between px-1 gap-1 border border-purple-900/50">
               <div className="h-4 w-1/5 bg-purple-500 rounded text-[8px] font-bold text-white flex items-center justify-center">98%</div>
               <div className="h-1.5 w-1/6 bg-slate-700 rounded" />
-              <div className="h-4 w-1/5 bg-cyan-400 rounded text-[8px] font-bold text-slate-950 flex items-center justify-center">96%</div>
+              <div className="h-4 w-1/5 bg-cyan-400 rounded text-[8px] font-bold text-slate-950 flex items-center justify-center">2</div>
               <div className="h-1.5 w-1/6 bg-slate-700 rounded" />
               <div className="h-4 w-1/5 bg-purple-500 rounded text-[8px] font-bold text-white flex items-center justify-center">94%</div>
             </div>
-            <p className="text-[10px] text-cyan-300 mt-2 text-center font-medium">Listo en 45 segundos con puntuación viral</p>
+            <p className="text-[10px] text-cyan-300 mt-2 text-center font-medium">Propuestas a partir del texto, no una puntuación real</p>
           </div>
         ),
       },
     },
     {
-      title: 'Seguimiento facial inteligente',
-      subtitle: 'Encuadre 9:16 vertical que sigue al orador en tiempo real',
+      title: 'Recorte vertical 9:16',
+      subtitle: 'Centrado y quieto. No sigue la cara: eso hacía saltos.',
       description:
-        'Reencuadra vídeos horizontales (16:9) a formato vertical (9:16) manteniendo siempre centrados los rostros de los interlocutores sin deformar la imagen ni perder detalles.',
+        'Pasa un vídeo horizontal a vertical 9:16 con un recorte centrado. No sigue al orador fotograma a fotograma.',
       icon: ScanFace,
       tag: 'Auto-Crop 9:16',
       beforeAfter: {
@@ -97,7 +97,7 @@ export const Funciones: React.FC = () => {
                 <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
               </div>
               <div className="absolute top-1 right-1 text-[7px] bg-cyan-400 text-slate-950 font-black px-1 rounded">
-                AI FOCUS
+                9:16
               </div>
               <span className="text-[8px] font-bold text-white mt-1">100% Centrado</span>
             </div>
@@ -109,18 +109,18 @@ export const Funciones: React.FC = () => {
       title: 'Subtítulos automáticos (Whisper)',
       subtitle: 'Transcripción precisa con estilos animados tipo Alex Hormozi',
       description:
-        'Integración con Whisper IA para subtítulos con 99,4% de precisión fonética, resaltado dinámico de palabras por segundo, emojis automáticos y efectos de color de alto impacto.',
+        'Transcribe el audio y coloca los subtítulos con los tiempos de cada palabra. Hay varios estilos. No prometemos un porcentaje de acierto ni añadimos emojis solos.',
       icon: Subtitles,
       tag: 'Speech-to-Text IA',
       beforeAfter: {
         beforeText: 'Subtítulos aburridos estáticos difíciles de leer',
-        afterText: 'Palabras animadas con colores y emojis de retención',
+        afterText: 'Palabras resaltadas, sin emojis automáticos',
         beforeSvg: (
           <div className="w-full h-28 bg-[#090912] rounded-lg p-2.5 flex flex-col justify-center items-center border border-rose-950/30">
             <div className="text-slate-400 text-[11px] font-sans">
               "hoy les voy a contar cómo..."
             </div>
-            <p className="text-[10px] text-slate-600 mt-2">Baja retención visual (30% caída)</p>
+            <p className="text-[10px] text-slate-600 mt-2">Texto plano, difícil de seguir</p>
           </div>
         ),
         afterSvg: (
@@ -131,7 +131,7 @@ export const Funciones: React.FC = () => {
                 CONTAR 🚀
               </span>
             </div>
-            <p className="text-[10px] text-cyan-300 mt-2 font-bold">+85% Retención media de visualización</p>
+            <p className="text-[10px] text-cyan-300 mt-2 font-bold">Estilo animado, sin una cifra de retención</p>
           </div>
         ),
       },
@@ -175,12 +175,12 @@ export const Funciones: React.FC = () => {
       title: 'Títulos gancho y CTA por IA',
       subtitle: 'Hooks irresistibles generados para maximizar clics',
       description:
-        'Genera automáticamente los primeros 3 segundos clave (títulos en pantalla, miniaturas sugeridas y textos de descripción con hashtags optimizados para el algoritmo de TikTok y YouTube).',
+        'Propone un título gancho, una descripción y hashtags para copiar. No genera la miniatura ni promete un porcentaje de clics.',
       icon: Flame,
       tag: 'Hooks de Conversión',
       beforeAfter: {
         beforeText: 'Títulos genéricos y descripciones vacías',
-        afterText: 'Hooks con 95%+ CTR y llamadas a la acción virales',
+        afterText: 'Título y hashtags listos para copiar',
         beforeSvg: (
           <div className="w-full h-28 bg-[#090912] rounded-lg p-2.5 flex flex-col justify-center border border-rose-950/30 text-left">
             <p className="text-[11px] text-slate-400 font-mono truncate">Episodio 12 del podcast.mp4</p>
@@ -194,26 +194,26 @@ export const Funciones: React.FC = () => {
             </p>
             <div className="flex items-center gap-1.5 mt-1.5 text-[9px] text-purple-300">
               <span className="bg-purple-900/60 px-1.5 py-0.5 rounded font-bold">#shorts</span>
-              <span className="bg-cyan-950 px-1.5 py-0.5 rounded text-cyan-400 font-bold">CTR: 14.8%</span>
+              <span className="bg-cyan-950 px-1.5 py-0.5 rounded text-cyan-400 font-bold">#viral</span>
             </div>
           </div>
         ),
       },
     },
     {
-      title: 'Modo juego y deportes (B-Roll)',
-      subtitle: 'Pantalla dividida con gameplay y B-Roll dinámico',
+      title: 'Pantalla partida y fondo',
+      subtitle: 'Dos personas en pantalla, o el vídeo sobre un fondo desenfocado',
       description:
-        'Detecta automáticamente momentos de máxima acción en streams de videojuegos o podcasts largos, insertando automáticamente B-Rolls y composiciones duales para mantener la dopamina al máximo.',
+        'Puedes partir la pantalla, desenfocar el fondo o poner abajo otro tramo del mismo vídeo. Ese tramo, si lo dejas en automático, es uno al azar: no detecta la acción del juego ni trae vídeos de stock.',
       icon: Gamepad2,
-      tag: 'Gaming & B-Roll',
+      tag: 'Formato',
       beforeAfter: {
         beforeText: 'Pantalla fija monótona con caídas de retención',
         afterText: 'Layout interactivo con cámara + clips dinámicos sincronizados',
         beforeSvg: (
           <div className="w-full h-28 bg-[#090912] rounded-lg p-2 flex items-center justify-center border border-rose-950/30">
             <div className="w-20 h-20 bg-slate-900 rounded border border-slate-800 flex items-center justify-center text-[9px] text-slate-500 text-center">
-              Cámara fija sin B-roll
+              Un solo plano
             </div>
           </div>
         ),
@@ -224,7 +224,7 @@ export const Funciones: React.FC = () => {
                 Facecam Creador
               </div>
               <div className="flex-1 bg-cyan-950/50 rounded flex items-center justify-center text-[7px] text-cyan-300 font-bold">
-                🎮 B-Roll Gameplay
+                Pantalla partida
               </div>
             </div>
           </div>
@@ -256,7 +256,7 @@ export const Funciones: React.FC = () => {
             </span>
           </h2>
           <p className="text-base sm:text-lg text-slate-300">
-            Cada función está calibrada matemáticamente para aumentar el tiempo de retención y disparar las recomendaciones orgánicas en redes.
+            Recorte, subtítulos y un título para copiar. Nada de aquí publica solo ni promete más visitas.
           </p>
         </div>
 

@@ -41,6 +41,7 @@ import { supabase, getSupabaseEnv } from '../../../../../lib/supabase/client';
 import { subirPorTrozosTus } from '../../../../../lib/tusUpload';
 import type { Proyecto, Clip } from '../../../../../lib/supabase/types';
 import { extract16kHzAudio } from '../../../../../lib/audioExtractor';
+import { copiarEnElGesto } from '../../../../../lib/portapapeles';
 import { generarVentanasTemporales, calcularHeuristicasVentanas } from '../../../../../lib/audioHeuristics';
 import { captureVideoFrame } from '../../../../../lib/thumbnailExtractor';
 import { toast } from 'sonner';
@@ -185,6 +186,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   // Aviso cuando YouTube no nos deja leer los subtítulos (IP bloqueada o vídeo sin subs).
   // Sirve para mostrar un mensaje claro y empujar la subida del archivo (Whisper).
   const [ytBlock, setYtBlock] = useState<{ tipo: 'bloqueado' | 'sin_subtitulos'; mensaje: string } | null>(null);
+  const [errorTranscripcion, setErrorTranscripcion] = useState('');
 
   // Viral Analysis State (Fase 5)
   const [analyzing, setAnalyzing] = useState(false);
@@ -830,17 +832,47 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
 
   // Alternativa "estilo CapCut": si el vídeo de YouTube no tiene subtítulos (o YouTube
   // bloquea al servidor), el usuario sube el archivo y generamos la transcripción con Whisper.
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const transcribirDesdeArchivo = async (file: File) => {
+    setErrorTranscripcion('');
     setTranscribing(true);
-    setProgressPercent(15);
-    setProgressStage('Subiendo archivo y transcribiendo con Whisper…');
-    setProgressDetail('Puede tardar según la duración del audio…');
+    setProgressPercent(8);
+    setProgressStage('Preparando el audio en el teléfono…');
+    setProgressDetail(file.name);
 
     try {
+      // El vídeo descargado suele pesar más de lo que acepta la transcripción.
+      // Se queda solo el audio, en el propio teléfono, y eso es lo que se envía.
+      let audioParaEnviar: Blob = file;
+      let nombreEnvio = file.name || 'audio.wav';
+      try {
+        const extraction = await extract16kHzAudio(file, (p) => {
+          setProgressPercent(8 + Math.round((p.percent || 0) * 0.55));
+          setProgressStage(p.stage);
+          if (p.detail) setProgressDetail(p.detail);
+        });
+        audioParaEnviar = extraction.audioBlob;
+        nombreEnvio = 'audio.wav';
+      } catch (extractErr) {
+        const msg = extractErr instanceof Error ? extractErr.message : String(extractErr);
+        if (/no tiene pista de audio/i.test(msg)) {
+          throw new Error('Este archivo no tiene sonido, así que no hay nada que transcribir.');
+        }
+        if (file.size > 25 * 1024 * 1024) {
+          throw new Error(
+            `El archivo pesa ${(file.size / 1048576).toFixed(0)} MB. En el descargador elige 720p, o solo el audio, y vuelve a subirlo.`
+          );
+        }
+      }
+      if (audioParaEnviar.size > 25 * 1024 * 1024) {
+        throw new Error('El vídeo es demasiado largo para transcribirlo de una vez. Prueba con uno más corto.');
+      }
+
+      setProgressPercent(70);
+      setProgressStage('Transcribiendo el audio…');
+      setProgressDetail('Puede tardar según la duración…');
+
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', audioParaEnviar, nombreEnvio);
       fd.append('language', 'es');
       if (user) fd.append('user_id', user.id);
 
@@ -901,7 +933,12 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       toast.success(`Transcripción generada con Whisper (${result.segments?.length || 0} segmentos)`);
     } catch (err: any) {
       console.error('Transcripción desde archivo error:', err);
-      toast.error(err.message || 'Error al transcribir el archivo');
+      let msg = err?.message || 'Error al transcribir el archivo';
+      if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+        msg = 'Se cortó la subida. En el descargador elige 720p, o solo el audio, y vuelve a intentarlo.';
+      }
+      setErrorTranscripcion(msg);
+      toast.error(msg);
     } finally {
       setTimeout(() => {
         setTranscribing(false);
@@ -1220,25 +1257,14 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
 
   // Copia texto al portapapeles (con respaldo para navegadores sin clipboard API)
   const copiarAlPortapapeles = async (texto: string): Promise<boolean> => {
+    if (copiarEnElGesto(texto)) return true;
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(texto);
         return true;
       }
     } catch {}
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = texto;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(ta);
-      return ok;
-    } catch {
-      return false;
-    }
+    return false;
   };
 
   /**
@@ -1258,29 +1284,22 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const esMovil = () =>
     typeof window !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  const abrirDescargador = async (destino: string) => {
-    // La pestaña se abre ANTES de copiar: si esperamos al await, el navegador
-    // considera agotado el gesto del usuario y bloquea la ventana emergente
-    // (pasa sobre todo en Safari de iOS).
-    const ventana = window.open(destino, '_blank', 'noopener');
+  // El enlace se abre con una etiqueta <a>, no con window.open: en el móvil
+  // una pestaña abierta por script se bloquea y, encima, window.open('noopener')
+  // devuelve null aunque la página sí se haya abierto.
+  const alAbrirDescargador = () => {
     const enlace = proyecto?.url_youtube || '';
-    if (enlace) {
-      const ok = await copiarAlPortapapeles(enlace);
-      if (ok) {
-        marcarEnlaceCopiado();
-        toast.success(
-          esMovil()
-            ? 'Enlace copiado. En el descargador: mantén pulsado y elige Pegar.'
-            : 'Enlace copiado. En el descargador: pega con Ctrl+V y pulsa Descargar.'
-        );
-      } else {
-        toast('No se pudo copiar solo: usa el botón Copiar del paso 1.');
-      }
-    }
-    if (!ventana) {
-      toast.error(
-        'El navegador ha bloqueado la pestaña nueva. Permite las ventanas emergentes en esta web, o abre el descargador a mano.'
+    if (!enlace) return;
+    const ok = copiarEnElGesto(enlace);
+    if (ok) {
+      marcarEnlaceCopiado();
+      toast.success(
+        esMovil()
+          ? 'Enlace copiado. En el descargador, mantén pulsado el cuadro y elige Pegar.'
+          : 'Enlace copiado. En el descargador, pega con Ctrl+V y pulsa Descargar.'
       );
+    } else {
+      toast('No se ha copiado solo. El enlace está en el cuadro: mantenlo pulsado y elige Copiar.');
     }
   };
 
@@ -1503,11 +1522,12 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const copiarEnlaceYoutube = async () => {
     const url = proyecto?.url_youtube;
     if (!url) return;
-    try {
-      await navigator.clipboard.writeText(url);
+    const ok = await copiarAlPortapapeles(url);
+    if (ok) {
+      marcarEnlaceCopiado();
       toast.success('Enlace copiado al portapapeles');
-    } catch {
-      toast.error('No se ha podido copiar. Ábrelo y cópialo a mano.');
+    } else {
+      toast.error('No se ha podido copiar. Mantenlo pulsado en el cuadro y elige Copiar.');
     }
   };
 
@@ -1758,24 +1778,22 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
 
                   {esYoutube && (
                     <>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="audio/*,video/*,.mp3,.mp4,.m4a,.wav,.webm,.mov"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) transcribirDesdeArchivo(f);
-                          e.target.value = '';
-                        }}
-                      />
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-6 py-4 rounded-xl text-sm font-bold bg-[#0e0e1c] border border-purple-700/50 text-purple-200 hover:bg-[#15152a] hover:border-purple-500/60 transition-all cursor-pointer"
+                      <label
+                        className="relative w-full sm:w-auto inline-flex items-center justify-center gap-3 px-6 py-4 rounded-xl text-sm font-bold bg-[#0e0e1c] border border-purple-700/50 text-purple-200 hover:bg-[#15152a] hover:border-purple-500/60 transition-all cursor-pointer"
                         title="Si el vídeo no tiene subtítulos o YouTube bloquea al servidor, sube el archivo y lo transcribimos con Whisper"
                       >
                         <span>📁 ¿Sin subtítulos? Sube el vídeo/audio</span>
-                      </button>
+                        <input
+                          type="file"
+                          accept="audio/*,video/*,.mp3,.mp4,.m4a,.wav,.webm,.mov"
+                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) transcribirDesdeArchivo(f);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
                     </>
                   )}
                 </div>
@@ -1812,6 +1830,12 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                         {proyecto.titulo || displayTitle}
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
+                        <input
+                          readOnly
+                          value={proyecto.url_youtube}
+                          onFocus={(e) => e.currentTarget.select()}
+                          className="w-full min-w-0 rounded-lg border border-slate-700 bg-[#0b0b18] px-3 py-2 text-[11px] font-mono text-slate-200"
+                        />
                         <a
                           href={proyecto.url_youtube}
                           target="_blank"
@@ -1834,13 +1858,16 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                         <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
                           Paso 2 · Ábrelo en el descargador y baja el MP4
                         </p>
-                        <button
-                          onClick={() => abrirDescargador(DESCARGADOR_YT)}
-                          className="mt-2.5 inline-flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-cyan-700/50 bg-[#0e0e1c] px-4 py-3 text-sm font-bold text-cyan-100 transition-all hover:border-cyan-500/60 hover:bg-[#15152a] sm:w-auto"
+                        <a
+                          href={DESCARGADOR_YT}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={alAbrirDescargador}
+                          className="mt-2.5 inline-flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-cyan-700/50 bg-[#0e0e1c] px-4 py-3 text-sm font-bold text-cyan-100 no-underline transition-all hover:border-cyan-500/60 hover:bg-[#15152a] sm:w-auto"
                         >
-                          <span>Abrir descargador (copia el enlace solo)</span>
+                          <span>Abrir descargador</span>
                           <ExternalLink className="h-4 w-4 shrink-0 text-cyan-300" />
-                        </button>
+                        </a>
                         <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
                           {esMovil() ? (
                             <>
@@ -1883,14 +1910,28 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                         <span>Volver a intentar</span>
                       </button>
                     )}
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-7 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black shadow-lg shadow-amber-900/30 transition-all cursor-pointer"
+                    <label
+                      className="relative w-full sm:w-auto inline-flex items-center justify-center gap-3 px-7 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black shadow-lg shadow-amber-900/30 transition-all cursor-pointer"
                     >
                       <Upload className="w-5 h-5" />
                       <span>Paso 3 · Subir el archivo y transcribir</span>
-                    </button>
+                      <input
+                        type="file"
+                        accept="audio/*,video/*,.mp3,.mp4,.m4a,.wav,.webm,.mov"
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) transcribirDesdeArchivo(f);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
                   </div>
+                  {errorTranscripcion && (
+                    <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs leading-relaxed text-red-200">
+                      {errorTranscripcion}
+                    </p>
+                  )}
 
                   <p className="text-[11px] text-slate-400 leading-relaxed">
                     Vale el audio o el vídeo (.mp3, .mp4, .m4a, .wav…). Si es contenido tuyo, usa el original; si no, consíguelo por tu cuenta y súbelo aquí.
@@ -2600,13 +2641,16 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                   <span className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center text-[10px] shrink-0">2</span>
                   Ábrelo en el descargador y baja el MP4
                 </div>
-                <button
-                  onClick={() => abrirDescargador(DESCARGADOR_YT)}
-                  className="w-full inline-flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl text-sm font-bold bg-[#0e0e1c] border border-purple-700/50 text-purple-100 hover:bg-[#15152a] hover:border-purple-500/60 transition-all cursor-pointer"
+                <a
+                  href={DESCARGADOR_YT}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={alAbrirDescargador}
+                  className="w-full inline-flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl text-sm font-bold bg-[#0e0e1c] border border-purple-700/50 text-purple-100 no-underline hover:bg-[#15152a] hover:border-purple-500/60 transition-all cursor-pointer"
                 >
-                  <span>Abrir descargador (copia el enlace solo)</span>
+                  <span>Abrir descargador</span>
                   <ExternalLink className="w-4 h-4 text-cyan-300 shrink-0" />
-                </button>
+                </a>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
                   {esMovil() ? (
                     <>

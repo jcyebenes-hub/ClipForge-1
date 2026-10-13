@@ -9,7 +9,9 @@ import { trackEvent } from '../../lib/analytics';
  * El enlace viene de lib/kofi.ts (VITE_KOFI_URL tiene prioridad).
  */
 import { urlKoFi } from '../../lib/kofi';
+import { esAppDeTienda } from '../../lib/tienda';
 export function KoFiTopButton() {
+  if (esAppDeTienda()) return null;
   const kofiUrl = urlKoFi();
 
   const base = (import.meta as any).env?.BASE_URL || '/';

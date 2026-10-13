@@ -8,6 +8,7 @@ import LandingPage from './app/(landing)/page';
 import LoginPage from './app/(auth)/login/page';
 import AppNavbar from './components/layout/AppNavbar';
 import { trackLandingVisit } from './lib/analytics';
+import { esAppDeTienda } from './lib/tienda';
 import { Toaster } from 'sonner';
 import { Loader2 } from 'lucide-react';
 

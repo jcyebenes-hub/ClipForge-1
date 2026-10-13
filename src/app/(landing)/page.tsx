@@ -9,6 +9,7 @@ import { Faq } from '../../components/landing/faq';
 import { Footer } from '../../components/landing/footer';
 import { urlKoFi } from '../../lib/kofi';
 import { CORREO_CONTACTO, mailtoContacto } from '../../lib/contacto';
+import { esAppDeTienda } from '../../lib/tienda';
 import { 
   Sparkles, 
   X, 
@@ -93,6 +94,9 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
       handleStartFree();
       return;
     }
+    // En la app de la tienda no se abre el camino de pago. Google no permite
+    // cobrar un producto digital por fuera de su sistema.
+    if (esAppDeTienda()) return;
     setPlanModal(planName === 'A medida' ? 'medida' : 'creador');
   };
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 import { Check, Sparkles, Zap, Flame, Crown, ArrowRight, ShieldCheck, HelpCircle } from 'lucide-react';
+import { esAppDeTienda } from '../../lib/tienda';
 
 interface PricingProps {
   onSelectPlan?: (planName: string) => void;
@@ -8,6 +9,7 @@ interface PricingProps {
 
 export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
   const { ref, isVisible } = useIntersectionObserver({ threshold: 0.15 });
+  const tienda = esAppDeTienda();
 
   const plans = [
     {
@@ -183,20 +185,23 @@ export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
                 {/* Card CTA Button */}
                 <div>
                   <button
-                    onClick={() => onSelectPlan?.(plan.name)}
+                    onClick={() => {
+                      if (tienda && plan.name !== 'Gratis') return;
+                      onSelectPlan?.(plan.name);
+                    }}
                     className={`w-full py-3.5 px-6 rounded-xl font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
                       plan.isPopular
                         ? 'bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-xl shadow-purple-900/50 hover:scale-[1.02] active:scale-[0.98]'
                         : 'bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-purple-500/50'
                     }`}
                   >
-                    <span>{plan.buttonText}</span>
+                    <span>{tienda && plan.name !== 'Gratis' ? 'No se cobra en la tienda' : plan.buttonText}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
 
                   <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 mt-3">
                     <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Sin cobro automático. Si pagas, es a mano.</span>
+                    <span>{tienda ? 'En la app de la tienda el plan es el gratis.' : 'Sin cobro automático. Si pagas, es a mano.'}</span>
                   </div>
                 </div>
               </div>

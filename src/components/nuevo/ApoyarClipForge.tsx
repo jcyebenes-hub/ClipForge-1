@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { trackEvent } from '../../lib/analytics';
 import { urlKoFi } from '../../lib/kofi';
+import { esAppDeTienda } from '../../lib/tienda';
 
 /**
  * ApoyarClipForge
@@ -91,6 +92,15 @@ export function ApoyarClipForge({ titulo, compacto = false, className = '' }: Pr
     // en localStorage y el usuario ve su confirmación igualmente.
     await trackEvent('correo_capturado', { email: limpio });
   };
+
+  if (esAppDeTienda()) {
+    if (compacto) return null;
+    return (
+      <p className={`rounded-2xl border border-purple-900/40 bg-[#090912] p-4 text-xs leading-relaxed text-slate-400 ${className}`}>
+        En la app de la tienda no se cobra. El plan gratis lleva marca de agua y 60 minutos al mes.
+      </p>
+    );
+  }
 
   if (compacto) {
     if (!kofiUrl) return null;

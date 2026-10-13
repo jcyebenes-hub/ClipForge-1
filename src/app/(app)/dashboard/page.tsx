@@ -150,13 +150,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
 
           {/* Big Action Button */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 shrink-0">
             <button
               onClick={() => onNavigate?.('/dashboard/publicar')}
               className="inline-flex items-center gap-2 px-4 py-3.5 rounded-2xl bg-[#141426] hover:bg-[#1f1f3a] border border-purple-900/40 text-slate-200 text-xs font-bold transition-all shadow-md cursor-pointer hover:border-purple-600/50"
             >
               <Calendar className="w-4 h-4 text-pink-400" />
-              <span>Calendario de Publicaciones</span>
+              <span>Calendario</span>
             </button>
 
             <button
@@ -171,10 +171,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             <button
               id="dashboard-create-clips-btn"
               onClick={() => onNavigate?.('/dashboard/nuevo')}
-              className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl font-black text-sm text-white bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-xl shadow-purple-950/60 hover:shadow-purple-700/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 border border-purple-400/40 cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-2xl font-black text-sm text-white bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-xl shadow-purple-950/60 hover:shadow-purple-700/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 border border-purple-400/40 cursor-pointer"
             >
               <Plus className="w-5 h-5 stroke-[2.5]" />
-              <span>＋ Crear clips nuevos</span>
+              <span>Crear clips nuevos</span>
             </button>
           </div>
         </div>

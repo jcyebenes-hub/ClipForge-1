@@ -1,8 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Radar, Loader2, AlertTriangle, Search, Copy, Check, TrendingUp, Clock, CalendarClock, Flame, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { guardarReceta } from '../../../../lib/receta';
 import { avisarNoEspanol, detectarIdiomaTitulo } from '../../../../lib/idiomaTitulo';
+import {
+  CLAVE_MERCADO_ELEGIDO,
+  PAISES_SELECTOR,
+  banderaDePais,
+  idiomaDePais,
+  nombrePais,
+} from '../../../../lib/paisViral';
 import {
   ordenarCanales,
   siguienteOrden,
@@ -32,18 +39,8 @@ interface Props {
   onNavigate?: (path: string) => void;
 }
 
-type Mercado = 'ES' | 'LATAM' | 'GLOBAL';
-
-/**
- * Qué se manda a la API en cada caso. Ojo: ni `regionCode` ni
- * `relevanceLanguage` filtran de verdad (son sugerencias), por eso los títulos
- * siguen revisándose con el detector de idioma antes de mostrarlos.
- */
-const MERCADOS: { valor: Mercado; etiqueta: string; region: string; idioma: string; ayuda: string }[] = [
-  { valor: 'ES', etiqueta: '🇪🇸 España', region: 'ES', idioma: 'es', ayuda: 'España, español' },
-  { valor: 'LATAM', etiqueta: '🌎 Latinoamérica', region: 'MX', idioma: 'es', ayuda: 'Latinoamérica, español' },
-  { valor: 'GLOBAL', etiqueta: '🌐 Todo el mundo', region: 'GLOBAL', idioma: '', ayuda: 'sin filtro de país ni idioma' },
-];
+/** 'AUTO' = el país de la conexión. El resto es una elección explícita. */
+type Mercado = 'AUTO' | 'LATAM' | 'GLOBAL' | string;
 
 const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
   const { user, profile } = useAuth();
@@ -51,7 +48,9 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
   const [canales, setCanales] = useState('');
   const [palabraClave, setPalabraClave] = useState('');
   const [dias, setDias] = useState(90);
-  const [mercado, setMercado] = useState<Mercado>('ES');
+  const [mercado, setMercado] = useState<Mercado>('AUTO');
+  const [paisDetectado, setPaisDetectado] = useState<string | null>(null);
+  const [paisConsultado, setPaisConsultado] = useState(false);
   /**
    * Orden de la tabla de canales. Arranca en crecimiento diario, que es el orden
    * con el que ya venía el informe, así que al entrar no cambia nada: solo cambia
@@ -69,6 +68,32 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
   const [restantes, setRestantes] = useState<number | null>(null);
   /** Vídeos que YouTube coló en otro idioma y esta búsqueda ha quitado. */
   const [descartadosIdioma, setDescartadosIdioma] = useState(0);
+  const [descartadosPais, setDescartadosPais] = useState(0);
+
+  useEffect(() => {
+    try {
+      const elegido = localStorage.getItem(CLAVE_MERCADO_ELEGIDO);
+      if (elegido) setMercado(elegido);
+    } catch { /* modo privado: se queda en automático */ }
+    fetch('/api/pais')
+      .then((r) => r.json())
+      .then((d) => { if (d?.pais) setPaisDetectado(String(d.pais)); })
+      .catch(() => { /* sin país detectado se usa España */ })
+      .finally(() => setPaisConsultado(true));
+  }, []);
+
+  const paisActivo = mercado === 'AUTO' ? (paisDetectado || 'ES') : mercado;
+  const estricto = mercado !== 'LATAM' && mercado !== 'GLOBAL';
+  const regionBusqueda = mercado === 'LATAM' ? 'MX' : mercado === 'GLOBAL' ? 'GLOBAL' : paisActivo;
+  const idiomaBusqueda = mercado === 'GLOBAL' ? '' : mercado === 'LATAM' ? 'es' : idiomaDePais(paisActivo);
+
+  const elegirMercado = (valor: string) => {
+    setMercado(valor);
+    try {
+      if (valor === 'AUTO') localStorage.removeItem(CLAVE_MERCADO_ELEGIDO);
+      else localStorage.setItem(CLAVE_MERCADO_ELEGIDO, valor);
+    } catch { /* no bloquea la búsqueda */ }
+  };
   const [soloShorts, setSoloShorts] = useState(true);
   const [orden, setOrden] = useState<'contribucion' | 'rendimiento'>('contribucion');
   const [cargando, setCargando] = useState(false);
@@ -120,6 +145,8 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
     setCargando(true);
     setError(null);
     setInforme(null);
+    setDescartadosIdioma(0);
+    setDescartadosPais(0);
     try {
       const res = await fetch(modo === 'clave' ? '/api/tendencias' : '/api/competencia', {
         method: 'POST',
@@ -132,8 +159,9 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
                 plan: profile?.plan,
                 dias,
                 orden,
-                region: MERCADOS.find((m) => m.valor === mercado)?.region ?? 'ES',
-                idioma: MERCADOS.find((m) => m.valor === mercado)?.idioma ?? 'es',
+                region: regionBusqueda,
+                idioma: idiomaBusqueda,
+                paisEstricto: estricto,
               }
             : { canales: lista, dias, soloShorts, orden }
         ),
@@ -146,6 +174,8 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
       setInforme(data.informe);
       if (typeof data.busquedasRestantes === 'number') setRestantes(data.busquedasRestantes);
       setAnalizados(data.analizados ?? 0);
+      setDescartadosIdioma(Number(data.descartadosIdioma) || 0);
+      setDescartadosPais(Number(data.descartadosPais) || 0);
     } catch (e: any) {
       setError(e?.message ?? 'No se pudo conectar con el servidor.');
     } finally {
@@ -198,8 +228,14 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
                 className="mt-1.5 w-full rounded-xl bg-slate-900/70 border border-slate-700 px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
               />
               <span className="text-[11px] text-slate-500">
-                Busca los Shorts más vistos de ese tema ({MERCADOS.find((m) => m.valor === mercado)?.ayuda}).{' '}
-                {mercado !== 'GLOBAL' && 'YouTube no mira el país de origen: el portugués que se cuele lo quitamos. '}
+                {mercado === 'AUTO'
+                  ? `Por defecto, el país de tu conexión${paisDetectado ? `: ${nombrePais(paisDetectado)}` : paisConsultado ? ' (no detectado, se usa España)' : ''}. `
+                  : mercado === 'GLOBAL'
+                    ? 'Sin filtro de país ni idioma. '
+                    : mercado === 'LATAM'
+                      ? 'Latinoamérica, en español. '
+                      : `${nombrePais(paisActivo)}. `}
+                {estricto && 'Si un canal declara otro país, se quita. Si no declara país, se queda cuando el idioma encaja. '}
                 {restantes === null
                   ? 'Cada búsqueda gasta cuota de YouTube.'
                   : `Te quedan ${restantes} ${restantes === 1 ? 'búsqueda' : 'búsquedas'} hoy.`}
@@ -225,14 +261,23 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Mercado</span>
                 <select
                   value={mercado}
-                  onChange={(e) => setMercado(e.target.value as Mercado)}
+                  onChange={(e) => elegirMercado(e.target.value)}
                   className="mt-1.5 rounded-xl bg-slate-900/70 border border-slate-700 px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                 >
-                  {MERCADOS.map((m) => (
-                    <option key={m.valor} value={m.valor}>
-                      {m.etiqueta}
+                  <option value="AUTO">
+                    {paisDetectado
+                      ? `${banderaDePais(paisDetectado)} Mi país · ${nombrePais(paisDetectado)}`
+                      : paisConsultado
+                        ? 'Mi país · no detectado (España)'
+                        : 'Mi país · detectando…'}
+                  </option>
+                  {PAISES_SELECTOR.map((iso) => (
+                    <option key={iso} value={iso}>
+                      {banderaDePais(iso)} {nombrePais(iso)}
                     </option>
                   ))}
+                  <option value="LATAM">🌎 Latinoamérica</option>
+                  <option value="GLOBAL">🌐 Todo el mundo</option>
                 </select>
               </label>
             )}
@@ -294,9 +339,11 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
         {/* Informe */}
         {informe && (
           <div className="space-y-6">
-            {descartadosIdioma > 0 && (
+            {(descartadosIdioma > 0 || descartadosPais > 0) && (
               <p className="rounded-xl border border-amber-800/50 bg-amber-950/30 px-3 py-2 text-xs leading-relaxed text-amber-200">
-                YouTube coló {descartadosIdioma} {descartadosIdioma === 1 ? 'vídeo' : 'vídeos'} en portugués u otros idiomas. Los hemos quitado. La bandera pide vídeos visibles en ese país, no hechos allí.
+                {descartadosIdioma > 0 && `Quitados ${descartadosIdioma} en otro idioma. `}
+                {descartadosPais > 0 && `Quitados ${descartadosPais} de canales que declaran otro país. `}
+                YouTube no dice dónde se grabó el vídeo: solo si se puede ver en el país, y el país del canal cuando este lo ha escrito.
               </p>
             )}
             {/* Métricas clave */}

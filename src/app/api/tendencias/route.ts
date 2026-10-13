@@ -18,6 +18,7 @@
 
 import { analizarVideos, metricasCanal, type MetricaCanal, type YTVideo } from '@/src/lib/analisisYoutube';
 import { debeDescartarPorIdioma } from '@/src/lib/idiomaTitulo';
+import { debeDescartarPorPais } from '@/src/lib/paisViral';
 import {
   puedeBuscar,
   registrarBusqueda,
@@ -197,15 +198,23 @@ export async function POST(req: Request) {
         }))
       : videos;
     const descartadosIdioma = videos.length - quedan.length;
-    if (!quedan.length) {
+    const estricto = body.paisEstricto === true && !!region;
+    const quedanPais = estricto
+      ? quedan.filter((v) => !debeDescartarPorPais(region, v.canalId ? paisPorCanal[v.canalId] : ''))
+      : quedan;
+    const descartadosPais = quedan.length - quedanPais.length;
+    if (!quedanPais.length) {
       return Response.json(
         {
-          error:
-            `YouTube devolvió ${videos.length} vídeos visibles en ${region || 'ese país'}, ` +
-            'pero ninguno parecía en el idioma pedido. La bandera no significa «hecho en ese país». ' +
-            'Prueba otro tema o «Todo el mundo».',
+          error: estricto && !quedanPais.length && quedan.length
+            ? `YouTube devolvió vídeos visibles en ${region}, pero los canales que declaran país son de otro. ` +
+              'La mayoría de canales no declaran país. Prueba Latinoamérica o Todo el mundo.'
+            : `YouTube devolvió ${videos.length} vídeos visibles en ${region || 'ese país'}, ` +
+              'pero ninguno parecía en el idioma pedido. La bandera no significa «hecho en ese país». ' +
+              'Prueba otro tema o «Todo el mundo».',
           informe: null,
           descartadosIdioma,
+          descartadosPais,
           region: region || 'GLOBAL',
           idioma: idioma || null,
         },
@@ -213,11 +222,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const informe = analizarVideos(quedan, { periodoDias: dias, canales: mapaCanales, orden });
+    const informe = analizarVideos(quedanPais, { periodoDias: dias, canales: mapaCanales, orden });
     return Response.json({
       informe,
-      analizados: quedan.length,
+      analizados: quedanPais.length,
       descartadosIdioma,
+      descartadosPais,
       palabraClave,
       region: region || 'GLOBAL',
       idioma: idioma || null,

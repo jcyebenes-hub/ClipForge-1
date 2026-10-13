@@ -142,6 +142,67 @@ describe('/api/tendencias · filtro de mercado', () => {
     expect(busca.searchParams.get('publishedAfter')).toBeTruthy();
   });
 
+  it('con país estricto quita el canal que declara otro y deja el que no declara', async () => {
+    const fetchFalso = vi.fn(async (entrada: unknown) => {
+      const url = new URL(String(entrada));
+      if (url.pathname.endsWith('/search')) return { ok: true, status: 200, json: async () => respuestaBusqueda() };
+      if (url.pathname.endsWith('/videos')) return { ok: true, status: 200, json: async () => respuestaVideos() };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [
+            { id: 'UCcanal0', snippet: { country: 'MX', title: 'México', publishedAt: new Date().toISOString() }, statistics: {} },
+            { id: 'UCcanal1', snippet: { title: 'Sin país', publishedAt: new Date().toISOString() }, statistics: {} },
+            { id: 'UCcanal2', snippet: { country: 'ES', title: 'España', publishedAt: new Date().toISOString() }, statistics: {} },
+          ],
+        }),
+      };
+    });
+    (globalThis as unknown as { fetch: unknown }).fetch = fetchFalso;
+
+    const res = await POST(peticion({
+      palabraClave: 'políticos',
+      region: 'ES',
+      idioma: 'es',
+      paisEstricto: true,
+    }));
+    expect(res.status).toBe(200);
+    const datos = await res.json();
+    expect(datos.descartadosPais).toBe(1);
+    expect(datos.analizados).toBe(2);
+    const canales = datos.informe.destacados.map((v: { canal: string }) => v.canal);
+    expect(canales).not.toContain('Canal 0');
+    expect(canales).toContain('Canal 1');
+    expect(canales).toContain('Canal 2');
+  });
+
+  it('sin país estricto no quita un canal hispano de otro país', async () => {
+    const fetchFalso = vi.fn(async (entrada: unknown) => {
+      const url = new URL(String(entrada));
+      if (url.pathname.endsWith('/search')) return { ok: true, status: 200, json: async () => respuestaBusqueda() };
+      if (url.pathname.endsWith('/videos')) return { ok: true, status: 200, json: async () => respuestaVideos() };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: IDS.map((_, i) => ({
+            id: `UCcanal${i}`,
+            snippet: { country: 'MX', title: `Canal ${i}`, publishedAt: new Date().toISOString() },
+            statistics: {},
+          })),
+        }),
+      };
+    });
+    (globalThis as unknown as { fetch: unknown }).fetch = fetchFalso;
+
+    const res = await POST(peticion({ palabraClave: 'políticos', region: 'ES', idioma: 'es' }));
+    const datos = await res.json();
+    expect(res.status).toBe(200);
+    expect(datos.descartadosPais).toBe(0);
+    expect(datos.analizados).toBe(3);
+  });
+
   it('sin clave de API avisa en lugar de petar', async () => {
     delete process.env.YOUTUBE_API_KEY;
     const res = await POST(peticion({ palabraClave: 'minecraft' }));

@@ -162,6 +162,10 @@ app.get('/health', (_req, res) => {
 // Frontend estático (dist/) con fallback SPA
 // ---------------------------------------------------------------------------
 const distDir = path.join(__dirname, 'dist');
+app.get('/sw.js', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(path.join(distDir, 'sw.js'));
+});
 app.use(express.static(distDir));
 
 app.use((req, res, next) => {

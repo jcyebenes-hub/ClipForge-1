@@ -845,11 +845,16 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       let audioParaEnviar: Blob = file;
       let nombreEnvio = file.name || 'audio.wav';
       try {
-        const extraction = await extract16kHzAudio(file, (p) => {
-          setProgressPercent(8 + Math.round((p.percent || 0) * 0.55));
-          setProgressStage(p.stage);
-          if (p.detail) setProgressDetail(p.detail);
-        });
+        const extraction = await Promise.race([
+          extract16kHzAudio(file, (p) => {
+            setProgressPercent(8 + Math.round((p.percent || 0) * 0.55));
+            setProgressStage(p.stage);
+            if (p.detail) setProgressDetail(p.detail);
+          }),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('__TIMEOUT_AUDIO__')), 45000);
+          }),
+        ]);
         audioParaEnviar = extraction.audioBlob;
         nombreEnvio = 'audio.wav';
       } catch (extractErr) {
@@ -857,7 +862,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
         if (/no tiene pista de audio/i.test(msg)) {
           throw new Error('Este archivo no tiene sonido, así que no hay nada que transcribir.');
         }
-        if (file.size > 25 * 1024 * 1024) {
+        if (msg === '__TIMEOUT_AUDIO__' || file.size > 25 * 1024 * 1024) {
           throw new Error(
             `El archivo pesa ${(file.size / 1048576).toFixed(0)} MB. En el descargador elige 720p, o solo el audio, y vuelve a subirlo.`
           );

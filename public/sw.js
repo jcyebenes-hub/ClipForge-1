@@ -6,7 +6,7 @@
  *     como respaldo offline). Así nunca se sirve una versión vieja de la app desde caché.
  */
 
-const CACHE_NAME = 'clipforge-cache-v3';
+const CACHE_NAME = 'clipforge-cache-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -34,6 +34,10 @@ self.addEventListener('activate', (event) => {
       );
     }).then(() => self.clients.claim())
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -66,24 +70,34 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Recursos estáticos (assets con hash): stale-while-revalidate
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
+  // El código de la app (JS/CSS) se pide siempre a internet si hay red.
+  // Si se sirve primero la copia guardada, el móvil se queda en una versión
+  // que ya no existe y enseña avisos viejos.
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname.endsWith('/sw.js')) {
+    event.respondWith(
+      fetch(event.request)
         .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          if (networkResponse && networkResponse.status === 200) {
             const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
           }
           return networkResponse;
         })
-        .catch(() => {
-          return cachedResponse;
-        });
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
 
-      return cachedResponse || fetchPromise;
-    })
+  // El resto de archivos: red primero, copia solo si no hay internet.
+  event.respondWith(
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

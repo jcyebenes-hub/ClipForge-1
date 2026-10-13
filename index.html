@@ -42,9 +42,25 @@
         window.addEventListener('load', function() {
           navigator.serviceWorker.register('/sw.js').then(function(reg) {
             console.log('ClipForge PWA ServiceWorker registrado:', reg.scope);
+            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            reg.addEventListener('updatefound', function() {
+              var nuevo = reg.installing;
+              if (!nuevo) return;
+              nuevo.addEventListener('statechange', function() {
+                if (nuevo.state === 'installed' && navigator.serviceWorker.controller) {
+                  nuevo.postMessage({ type: 'SKIP_WAITING' });
+                }
+              });
+            });
           }).catch(function(err) {
             console.log('ClipForge PWA ServiceWorker error:', err);
           });
+        });
+        var yaRecargado = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          if (yaRecargado) return;
+          yaRecargado = true;
+          window.location.reload();
         });
       }
     </script>

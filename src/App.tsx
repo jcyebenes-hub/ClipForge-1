@@ -37,6 +37,8 @@ const ClipEditarPage = lazy(
 const PublicarPage = lazy(() => import('./app/(app)/dashboard/publicar/page'));
 const EstadisticasPage = lazy(() => import('./app/(app)/dashboard/estadisticas/page'));
 const CompetenciaPage = lazy(() => import('./app/(app)/dashboard/competencia/page'));
+const PrivacidadPage = lazy(() => import('./components/legal/PrivacidadPage'));
+const EliminarCuentaPage = lazy(() => import('./components/legal/EliminarCuentaPage'));
 
 /** Spinner reutilizado tanto para el chequeo de auth como para Suspense. */
 function Cargando({ texto = 'Cargando ClipForge...' }: { texto?: string }) {
@@ -197,6 +199,16 @@ function AppRouter() {
 
     if (currentPath === '/') {
       return <LandingPage onNavigate={navigate} />;
+    }
+
+    // Públicas a propósito: Play Store exige la privacidad y el borrado de cuenta
+    // en una URL que se abra sin instalar la app y sin iniciar sesión.
+    if (currentPath === '/privacidad') {
+      return <PrivacidadPage onNavigate={navigate} />;
+    }
+
+    if (currentPath === '/eliminar-cuenta') {
+      return <EliminarCuentaPage onNavigate={navigate} />;
     }
 
     // 404 Not Found Page for any unhandled routes

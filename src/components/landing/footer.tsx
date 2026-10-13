@@ -1,5 +1,6 @@
 import React from 'react';
 import { ApoyarClipForge } from '../nuevo/ApoyarClipForge';
+import { CORREO_CONTACTO, mailtoContacto } from '../../lib/contacto';
 import { Video, Sparkles, Heart, Shield, Terminal, ArrowUp, Github, Twitter, Youtube, Instagram } from 'lucide-react';
 
 interface FooterProps {
@@ -8,7 +9,7 @@ interface FooterProps {
   onOpenContact?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onOpenPrivacy, onOpenTerms, onOpenContact }) => {
+export const Footer: React.FC<FooterProps> = ({ onOpenTerms }) => {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -93,22 +94,22 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPrivacy, onOpenTerms, onOp
                 </button>
               </li>
               <li>
-                <button
-                  type="button"
-                  onClick={onOpenPrivacy}
-                  className="hover:text-cyan-400 transition-colors cursor-pointer text-left"
-                >
+                <a href="/privacidad" className="hover:text-cyan-400 transition-colors">
                   Política de Privacidad
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  type="button"
-                  onClick={onOpenContact}
-                  className="hover:text-cyan-400 transition-colors cursor-pointer text-left"
+                <a href="/eliminar-cuenta" className="hover:text-cyan-400 transition-colors">
+                  Eliminar cuenta
+                </a>
+              </li>
+              <li>
+                <a
+                  href={mailtoContacto()}
+                  className="hover:text-cyan-400 transition-colors"
                 >
-                  Contacto & Soporte
-                </button>
+                  Contacto y soporte
+                </a>
               </li>
             </ul>
           </div>
@@ -148,7 +149,10 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPrivacy, onOpenTerms, onOp
               </a>
             </div>
             <p className="text-[11px] text-slate-500 mt-4">
-              ¿Tienes sugerencias? Escríbenos a <span className="text-slate-300">soporte@clipforge.ai</span>
+              ¿Tienes sugerencias? Escríbenos a{' '}
+              <a href={mailtoContacto()} className="text-slate-300 underline">
+                {CORREO_CONTACTO}
+              </a>
             </p>
           </div>
 

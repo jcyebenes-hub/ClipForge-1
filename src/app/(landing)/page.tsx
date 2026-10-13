@@ -8,6 +8,7 @@ import { Pricing } from '../../components/landing/pricing';
 import { Faq } from '../../components/landing/faq';
 import { Footer } from '../../components/landing/footer';
 import { urlKoFi } from '../../lib/kofi';
+import { CORREO_CONTACTO, mailtoContacto } from '../../lib/contacto';
 import { 
   Sparkles, 
   X, 
@@ -426,11 +427,14 @@ export default function LandingPage({ onNavigate }: LandingPageProps = {}) {
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3">¿Tienes alguna pregunta?</h3>
                 <p className="text-xs text-slate-300 mb-4">
-                  Escríbenos directamente y nuestro equipo de soporte te responderá en menos de 24 horas.
+                  Escríbenos a este correo. Lo leemos nosotros, no un equipo automático.
                 </p>
-                <div className="p-3 bg-[#151528] rounded-xl border border-slate-700 text-xs font-mono text-cyan-300 mb-4">
-                  contacto@clipforge.ai
-                </div>
+                <a
+                  href={mailtoContacto()}
+                  className="block p-3 bg-[#151528] rounded-xl border border-slate-700 text-xs font-mono text-cyan-300 mb-4 underline"
+                >
+                  {CORREO_CONTACTO}
+                </a>
                 <button
                   onClick={() => setActiveModal(null)}
                   className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 rounded-xl font-bold text-xs text-white"

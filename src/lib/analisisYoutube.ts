@@ -24,6 +24,9 @@ export interface YTVideo {
   etiquetas?: string[];
   canal?: string;
   canalId?: string;
+  /** Idioma de audio que declara YouTube. A menudo viene vacío. */
+  idiomaAudio?: string;
+  idiomaTexto?: string;
 }
 
 export interface PalabraTitulo {

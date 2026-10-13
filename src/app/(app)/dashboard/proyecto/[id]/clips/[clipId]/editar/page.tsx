@@ -98,11 +98,7 @@ import {
 } from 'lucide-react';
 import {
   ModoBRoll,
-  BRollPreset,
-  PRESETS_BROLL,
-  BRollConfig,
   calcularTramoAutomaticoBroll,
-  generarPresetBRollBlob,
   componerClipConBRoll,
 } from '@/src/lib/brollCompositor';
 import { ConfirmProcessModal } from '@/src/components/proyecto/ConfirmProcessModal';
@@ -233,7 +229,6 @@ export default function ClipEditarPage({
   // B-Roll / Gameplay States (Metraje de Juego)
   const [brollActivo, setBrollActivo] = useState<boolean>(false);
   const [brollModo, setBrollModo] = useState<ModoBRoll>('automatico');
-  const [brollPresetId, setBrollPresetId] = useState<string>('subway_surfers');
   const [brollCustomFile, setBrollCustomFile] = useState<File | null>(null);
   const [brollCustomUrl, setBrollCustomUrl] = useState<string | null>(null);
   const [brollAutoStartSec, setBrollAutoStartSec] = useState<number>(0);
@@ -627,66 +622,7 @@ export default function ClipEditarPage({
       ctx.rect(0, brollY, width, brollHeight);
       ctx.clip();
 
-      if (brollModo === 'preset') {
-        const t = canvasRelTime;
-        if (brollPresetId === 'subway_surfers') {
-          // Subway Surfers Canvas Simulation
-          ctx.fillStyle = '#0284c7';
-          ctx.fillRect(brollX, brollY, brollW, brollHeight * 0.4);
-          ctx.fillStyle = '#0f172a';
-          ctx.fillRect(brollX, brollY + brollHeight * 0.4, brollW, brollHeight * 0.6);
-
-          // Rails
-          ctx.strokeStyle = '#f59e0b';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.moveTo(brollX + brollW * 0.45, brollY + brollHeight * 0.4);
-          ctx.lineTo(brollX + brollW * 0.15, brollY + brollHeight);
-          ctx.moveTo(brollX + brollW * 0.55, brollY + brollHeight * 0.4);
-          ctx.lineTo(brollX + brollW * 0.85, brollY + brollHeight);
-          ctx.stroke();
-
-          // Runner
-          const runnerX = brollX + brollW * 0.5 + Math.sin(t * 3) * (brollW * 0.15);
-          ctx.fillStyle = '#3b82f6';
-          ctx.fillRect(runnerX - 6, brollY + brollHeight * 0.55, 12, 14);
-          ctx.fillStyle = '#ef4444';
-          ctx.beginPath();
-          ctx.arc(runnerX, brollY + brollHeight * 0.5, 4, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (brollPresetId === 'minecraft_parkour') {
-          // Minecraft Parkour Canvas Simulation
-          ctx.fillStyle = '#020617';
-          ctx.fillRect(brollX, brollY, brollW, brollHeight);
-          ctx.fillStyle = '#ea580c';
-          ctx.fillRect(brollX, brollY + brollHeight * 0.7, brollW, brollHeight * 0.3);
-
-          const jump = Math.abs(Math.sin(t * 6)) * 8;
-          ctx.fillStyle = '#15803d';
-          ctx.fillRect(brollX + brollW * 0.35, brollY + brollHeight * 0.4 + jump, 26, 6);
-          ctx.fillStyle = '#78350f';
-          ctx.fillRect(brollX + brollW * 0.35, brollY + brollHeight * 0.46 + jump, 26, 12);
-        } else if (brollPresetId === 'gta_stunts') {
-          // GTA Stunt Mega Ramp Simulation
-          ctx.fillStyle = '#312e81';
-          ctx.fillRect(brollX, brollY, brollW, brollHeight);
-          ctx.strokeStyle = '#06b6d4';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.moveTo(brollX, brollY + brollHeight);
-          ctx.lineTo(brollX + brollW, brollY + brollHeight * 0.3);
-          ctx.stroke();
-
-          ctx.fillStyle = '#f43f5e';
-          ctx.fillRect(brollX + brollW * 0.4, brollY + brollHeight * 0.45, 18, 8);
-        } else {
-          // Satisfying Kinetic Sand Simulation
-          ctx.fillStyle = '#8b5cf6';
-          ctx.fillRect(brollX + brollW * 0.2, brollY + brollHeight * 0.3, brollW * 0.6, brollHeight * 0.5);
-          ctx.fillStyle = '#f8fafc';
-          ctx.fillRect(brollX + brollW * 0.15, brollY + brollHeight * 0.35 + (t % 1) * 15, brollW * 0.7, 2);
-        }
-      } else if (brollVideoRef.current && brollVideoRef.current.readyState >= 2) {
+      if (brollVideoRef.current && brollVideoRef.current.readyState >= 2) {
         ctx.drawImage(brollVideoRef.current, brollX, brollY, brollW, brollHeight);
       } else if (video && video.readyState >= 2 && brollModo === 'automatico') {
         ctx.drawImage(video, brollX, brollY, brollW, brollHeight);
@@ -696,7 +632,7 @@ export default function ClipEditarPage({
         ctx.fillStyle = '#c7d2fe';
         ctx.font = 'bold 9px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('🎮 Metraje de juego (B-Roll)', width / 2, brollY + brollHeight / 2 + 3);
+        ctx.fillText('Vídeo de abajo', width / 2, brollY + brollHeight / 2 + 3);
       }
 
       // Small Badge at bottom corner
@@ -705,7 +641,7 @@ export default function ClipEditarPage({
       ctx.fillStyle = '#38bdf8';
       ctx.font = 'bold 7px monospace';
       ctx.textAlign = 'left';
-      ctx.fillText('🎮 GAMEPLAY B-ROLL', 7, brollY + 11);
+      ctx.fillText('VÍDEO ABAJO', 7, brollY + 11);
 
       ctx.restore();
 
@@ -809,7 +745,6 @@ export default function ClipEditarPage({
     marcaDeAgua,
     brollActivo,
     brollModo,
-    brollPresetId,
     brollCustomUrl,
   ]);
 
@@ -915,10 +850,6 @@ export default function ClipEditarPage({
 
         if (brollModo === 'subir_archivo' && brollCustomFile) {
           brollBlob = brollCustomFile instanceof Blob ? brollCustomFile : new Blob([brollCustomFile], { type: 'video/mp4' });
-        } else if (brollModo === 'preset') {
-          brollBlob = await generarPresetBRollBlob(brollPresetId, duracionClip, (msg) => {
-            setLogs((prev) => [...prev.slice(-15), `[Gameplay Preset] ${msg}`]);
-          });
         } else {
           // Automatic mode: Cut non-overlapping 10-20s fragment from original master video
           setLogs((prev) => [...prev, `[B-Roll Automático] Extrayendo tramo ${brollAutoStartSec.toFixed(1)}s - ${brollAutoEndSec.toFixed(1)}s del vídeo original sin solapar con el clip...`]);
@@ -1724,7 +1655,7 @@ export default function ClipEditarPage({
             <div className="flex items-center justify-between p-3 rounded-xl bg-[#121124] border border-cyan-900/40">
               <div className="space-y-0.5">
                 <div className="text-xs font-bold text-white flex items-center gap-2">
-                  <span>Añadir gameplay abajo</span>
+                  <span>Añadir otro tramo abajo</span>
                   {brollActivo && (
                     <span className="px-1.5 py-0.2 text-[9px] font-black uppercase rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
                       Activo
@@ -1759,7 +1690,7 @@ export default function ClipEditarPage({
                   <div className="text-[11px] leading-relaxed">
                     <p>
                       <strong className="text-cyan-300 font-semibold">Composición FFmpeg:</strong> El clip se recorta a{' '}
-                      <code className="text-cyan-200 bg-cyan-950 px-1 rounded text-[10px]">1080x1650</code> arriba y el gameplay se escala a{' '}
+                      <code className="text-cyan-200 bg-cyan-950 px-1 rounded text-[10px]">1080x1650</code> arriba y el otro tramo se escala a{' '}
                       <code className="text-cyan-200 bg-cyan-950 px-1 rounded text-[10px]">480x270</code> con pad centrado de{' '}
                       <code className="text-cyan-200 bg-cyan-950 px-1 rounded text-[10px]">1080x270</code> abajo.
                     </p>
@@ -1770,7 +1701,7 @@ export default function ClipEditarPage({
                 </div>
 
                 {/* Mode Selector Tabs (3 options) */}
-                <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#090912] rounded-xl border border-cyan-900/40">
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#090912] rounded-xl border border-cyan-900/40">
                   <button
                     type="button"
                     onClick={() => {
@@ -1801,22 +1732,6 @@ export default function ClipEditarPage({
                   >
                     <UploadCloud className="w-3.5 h-3.5" />
                     <span>Subir Propio</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBrollModo('preset');
-                      setEstadoProceso('modificado');
-                    }}
-                    className={`py-2 px-2 rounded-lg text-xs font-bold transition-all flex flex-col items-center gap-1 cursor-pointer ${
-                      brollModo === 'preset'
-                        ? 'bg-cyan-500 text-slate-950 shadow-md'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                    }`}
-                  >
-                    <Gamepad2 className="w-3.5 h-3.5" />
-                    <span>Presets</span>
                   </button>
                 </div>
 
@@ -1904,44 +1819,6 @@ export default function ClipEditarPage({
                   </div>
                 )}
 
-                {/* Option 3: Viral Gameplay Presets */}
-                {brollModo === 'preset' && (
-                  <div className="bg-[#121124] p-3 rounded-xl border border-cyan-900/40 space-y-2.5">
-                    <span className="text-xs font-bold text-white block">Selecciona un Preset Viral</span>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      {PRESETS_BROLL.map((preset) => {
-                        const isSelected = brollPresetId === preset.id;
-                        return (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            onClick={() => {
-                              setBrollPresetId(preset.id);
-                              setEstadoProceso('modificado');
-                            }}
-                            className={`p-2 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden ${
-                              isSelected
-                                ? 'bg-cyan-950/80 border-cyan-400 text-white shadow-md shadow-cyan-950/50'
-                                : 'bg-[#090912] border-cyan-900/40 text-slate-400 hover:text-slate-200'
-                            }`}
-                          >
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <span className="text-base">{preset.icono}</span>
-                              <span className="text-xs font-bold text-white leading-tight">{preset.nombre}</span>
-                            </div>
-                            <p className="text-[10px] text-slate-400 leading-tight">{preset.descripcion}</p>
-                            {isSelected && (
-                              <div className="absolute top-1 right-1">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>

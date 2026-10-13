@@ -18,7 +18,7 @@
  * Es PURO (sin red, sin Supabase) para poder probarlo en Node.
  */
 
-export type IdiomaTitulo = 'es' | 'no-es' | 'dudoso';
+export type IdiomaTitulo = 'es' | 'pt' | 'no-es' | 'dudoso';
 
 /** Minúsculas, sin tildes y sin eñe: la forma canónica con la que se compara. */
 function normalizar(palabra: string): string {
@@ -88,6 +88,33 @@ const SIN_LATIN = /[\u0400-\u04ff\u0600-\u06ff\u0590-\u05ff\u0e00-\u0e7f\u0370-\
 /** Señales casi inequívocas de español: la eñe y los signos de apertura. */
 const SENALES_FUERTES_ES = /[ñ¿¡]/;
 
+/**
+ * La ã, la õ y la ç no existen en español. Si aparecen, el título es portugués
+ * aunque comparta palabras con el español («política», «que», «de»).
+ */
+const SENALES_FUERTES_PT = /[ãõçÃÕÇ]/;
+
+/**
+ * Palabras que en portugués significan otra cosa, o que el español no usa.
+ * Van ya sin tilde, igual que `tokens()`. No se meten las compartidas
+ * («que», «de», «para», «política»).
+ */
+const LISTA_PORTUGUES = [
+  'voce', 'voces', 'nao', 'tambem', 'sao', 'aos', 'uma', 'umas', 'demais',
+  'diz', 'das', 'nas', 'isso', 'quando', 'onde', 'muito', 'seu', 'seus',
+  'dele', 'dela', 'deles', 'delas', 'nele', 'nela', 'num', 'numa', 'foi',
+  'tem', 'com', 'os', 'eles', 'obrigado', 'obrigada', 'verdade', 'voce',
+];
+const PORTUGUES = new Set(LISTA_PORTUGUES.map(normalizar));
+
+/** Una sola de estas basta. El resto necesita compañía para no marcar un nombre. */
+const PORTUGUES_FUERTE = new Set(
+  ['voce', 'voces', 'nao', 'tambem', 'demais', 'uma', 'umas', 'aos', 'isso', 'quando', 'onde', 'muito', 'diz', 'foi', 'verdade', 'das', 'nas'].map(normalizar)
+);
+
+/** Verbos portugueses en 3.ª persona del plural: «derrubam», «chegaram». */
+const NO_ES_TERMINACION_AM = new Set(['instagram', 'telegram', 'amsterdam', 'diagram']);
+
 /** Mínimas coincidencias para atreverse a decir un idioma. */
 const MIN_PISTAS = 2;
 
@@ -116,6 +143,21 @@ function tokens(texto: string): string[] {
  *              palabras ("Minecraft", "GTA 6"): no se puede saber, y es mejor
  *              decirlo que equivocarse.
  */
+/** ¿El texto, ya limpio, tiene forma de portugués? Alta precisión, no recall total. */
+export function parecePortugues(titulo: string): boolean {
+  if (!titulo) return false;
+  if (SENALES_FUERTES_PT.test(titulo)) return true;
+  const lista = tokens(titulo);
+  let medias = 0;
+  for (const t of lista) {
+    if (PORTUGUES_FUERTE.has(t)) return true;
+    if (t.length >= 5 && (t.endsWith('cao') || t.endsWith('oes'))) return true;
+    if (t.length >= 7 && t.endsWith('am') && !NO_ES_TERMINACION_AM.has(t)) return true;
+    if (PORTUGUES.has(t)) medias++;
+  }
+  return medias >= 2;
+}
+
 export function detectarIdiomaTitulo(titulo: string): IdiomaTitulo {
   if (!titulo || typeof titulo !== 'string') return 'dudoso';
   const bruto = titulo.trim();
@@ -123,6 +165,10 @@ export function detectarIdiomaTitulo(titulo: string): IdiomaTitulo {
 
   // Otro alfabeto: no es español, sin más discusión.
   if (SIN_LATIN.test(bruto)) return 'no-es';
+
+  // Portugués antes que el recuento de palabras: «que» y «de» existen en los dos
+  // y, si se cuentan primero, un título brasileño sale como español.
+  if (parecePortugues(bruto)) return 'pt';
 
   // La eñe o los signos ¿ ¡ no existen en inglés: valen por sí solos.
   if (SENALES_FUERTES_ES.test(bruto)) return 'es';
@@ -145,12 +191,48 @@ export function detectarIdiomaTitulo(titulo: string): IdiomaTitulo {
 
 /** Comodidad para la interfaz: ¿hay que avisar de que quizá no sea español? */
 export function avisarNoEspanol(titulo: string): boolean {
-  return detectarIdiomaTitulo(titulo) === 'no-es';
+  const idioma = detectarIdiomaTitulo(titulo);
+  return idioma === 'no-es' || idioma === 'pt';
 }
 
 /** Texto del aviso, para que la interfaz no se invente redacciones distintas. */
 export function textoAvisoIdioma(idioma: IdiomaTitulo): string | null {
+  if (idioma === 'pt') return 'Parece portugués';
   if (idioma === 'no-es') return 'Puede no ser español';
   if (idioma === 'dudoso') return 'Idioma no confirmado';
   return null;
+}
+
+export interface DatosIdiomaVideo {
+  idiomaPedido: string;
+  titulo: string;
+  idiomaAudio?: string;
+  idiomaTexto?: string;
+  paisCanal?: string;
+  nombreCanal?: string;
+}
+
+/**
+ * Con la bandera de España (o Latinoamérica) el usuario pide español.
+ * YouTube no lo garantiza: `regionCode` es «se puede ver en ese país» y
+ * `relevanceLanguage` es una sugerencia. Esto descarta lo que sí podemos
+ * saber: audio en otro idioma, canal de Brasil o Portugal, o título en
+ * portugués / no español. Un título dudoso se queda: mejor no tirar un
+ * vídeo español por no estar seguros.
+ */
+export function debeDescartarPorIdioma(datos: DatosIdiomaVideo): boolean {
+  const pedido = String(datos.idiomaPedido || '').trim().toLowerCase();
+  if (!pedido.startsWith('es')) return false;
+
+  const audio = String(datos.idiomaAudio || datos.idiomaTexto || '').trim().toLowerCase();
+  if (audio.startsWith('pt')) return true;
+  if (audio && !audio.startsWith('es') && audio !== 'und' && audio !== 'zxx') return true;
+
+  const pais = String(datos.paisCanal || '').trim().toUpperCase();
+  if (pais === 'BR' || pais === 'PT') return true;
+
+  if (/\bbrasil\b|\bbrazil\b/i.test(datos.nombreCanal || '')) return true;
+
+  const det = detectarIdiomaTitulo(datos.titulo);
+  return det === 'pt' || det === 'no-es';
 }

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Radar, Loader2, AlertTriangle, Search, Copy, Check, TrendingUp, Clock, CalendarClock, Flame, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { guardarReceta } from '../../../../lib/receta';
-import { avisarNoEspanol } from '../../../../lib/idiomaTitulo';
+import { avisarNoEspanol, detectarIdiomaTitulo } from '../../../../lib/idiomaTitulo';
 import {
   ordenarCanales,
   siguienteOrden,
@@ -67,6 +67,8 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
 
   /** Búsquedas que le quedan hoy al usuario. null = todavía no ha buscado. */
   const [restantes, setRestantes] = useState<number | null>(null);
+  /** Vídeos que YouTube coló en otro idioma y esta búsqueda ha quitado. */
+  const [descartadosIdioma, setDescartadosIdioma] = useState(0);
   const [soloShorts, setSoloShorts] = useState(true);
   const [orden, setOrden] = useState<'contribucion' | 'rendimiento'>('contribucion');
   const [cargando, setCargando] = useState(false);
@@ -197,6 +199,7 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
               />
               <span className="text-[11px] text-slate-500">
                 Busca los Shorts más vistos de ese tema ({MERCADOS.find((m) => m.valor === mercado)?.ayuda}).{' '}
+                {mercado !== 'GLOBAL' && 'YouTube no mira el país de origen: el portugués que se cuele lo quitamos. '}
                 {restantes === null
                   ? 'Cada búsqueda gasta cuota de YouTube.'
                   : `Te quedan ${restantes} ${restantes === 1 ? 'búsqueda' : 'búsquedas'} hoy.`}
@@ -291,6 +294,11 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
         {/* Informe */}
         {informe && (
           <div className="space-y-6">
+            {descartadosIdioma > 0 && (
+              <p className="rounded-xl border border-amber-800/50 bg-amber-950/30 px-3 py-2 text-xs leading-relaxed text-amber-200">
+                YouTube coló {descartadosIdioma} {descartadosIdioma === 1 ? 'vídeo' : 'vídeos'} en portugués u otros idiomas. Los hemos quitado. La bandera pide vídeos visibles en ese país, no hechos allí.
+              </p>
+            )}
             {/* Métricas clave */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Stat icon={<Clock className="w-4 h-4 text-cyan-400" />} label="Duración top" value={`${informe.duracionMediaTop}s`} sub={`resto: ${informe.duracionMediaResto}s`} />
@@ -462,9 +470,9 @@ const CompetenciaPage: React.FC<Props> = ({ onNavigate }) => {
                         {avisarNoEspanol(v.titulo) && (
                           <span
                             className="rounded border border-amber-700/50 bg-amber-950/40 px-1.5 py-0.5 font-semibold text-amber-300"
-                            title="El filtro de idioma de YouTube es solo una sugerencia: este título no parece español."
+                            title="El filtro de YouTube es solo una sugerencia. Este título no parece español."
                           >
-                            Puede no ser español
+                            {detectarIdiomaTitulo(v.titulo) === 'pt' ? 'Parece portugués' : 'Puede no ser español'}
                           </span>
                         )}
                         {v.canal && <span>· {v.canal}</span>}

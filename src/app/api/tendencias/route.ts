@@ -17,6 +17,7 @@
  */
 
 import { analizarVideos, metricasCanal, type MetricaCanal, type YTVideo } from '@/src/lib/analisisYoutube';
+import { debeDescartarPorIdioma } from '@/src/lib/idiomaTitulo';
 import {
   puedeBuscar,
   registrarBusqueda,
@@ -155,6 +156,8 @@ export async function POST(req: Request) {
         etiquetas: v.snippet?.tags ?? [],
         canal: v.snippet?.channelTitle ?? '',
         canalId: v.snippet?.channelId ?? '',
+        idiomaAudio: v.snippet?.defaultAudioLanguage ?? '',
+        idiomaTexto: v.snippet?.defaultLanguage ?? '',
       });
     }
     if (!videos.length) {
@@ -164,10 +167,12 @@ export async function POST(req: Request) {
     // 3) Métricas de los canales implicados (1 unidad).
     const chIds = [...new Set(videos.map((v) => v.canalId).filter(Boolean))] as string[];
     const mapaCanales: Record<string, MetricaCanal> = {};
+    const paisPorCanal: Record<string, string> = {};
     for (let i = 0; i < chIds.length; i += 50) {
       const cd: any = await ytFetch('channels', { part: 'snippet,statistics', id: chIds.slice(i, i + 50).join(',') }, key);
       for (const c of cd?.items ?? []) {
         const st = c.statistics ?? {};
+        paisPorCanal[c.id] = c.snippet?.country ?? '';
         mapaCanales[c.id] = metricasCanal({
           id: c.id,
           nombre: c.snippet?.title ?? c.id,
@@ -179,10 +184,40 @@ export async function POST(req: Request) {
       }
     }
 
-    const informe = analizarVideos(videos, { periodoDias: dias, canales: mapaCanales, orden });
+    // YouTube no filtra de verdad: con España devuelve vídeos visibles allí,
+    // incluidos los de Brasil. Quitamos los que sí podemos reconocer.
+    const quedan = idioma
+      ? videos.filter((v) => !debeDescartarPorIdioma({
+          idiomaPedido: idioma,
+          titulo: v.titulo,
+          idiomaAudio: v.idiomaAudio,
+          idiomaTexto: v.idiomaTexto,
+          paisCanal: v.canalId ? paisPorCanal[v.canalId] : '',
+          nombreCanal: v.canal,
+        }))
+      : videos;
+    const descartadosIdioma = videos.length - quedan.length;
+    if (!quedan.length) {
+      return Response.json(
+        {
+          error:
+            `YouTube devolvió ${videos.length} vídeos visibles en ${region || 'ese país'}, ` +
+            'pero ninguno parecía en el idioma pedido. La bandera no significa «hecho en ese país». ' +
+            'Prueba otro tema o «Todo el mundo».',
+          informe: null,
+          descartadosIdioma,
+          region: region || 'GLOBAL',
+          idioma: idioma || null,
+        },
+        { status: 404 }
+      );
+    }
+
+    const informe = analizarVideos(quedan, { periodoDias: dias, canales: mapaCanales, orden });
     return Response.json({
       informe,
-      analizados: videos.length,
+      analizados: quedan.length,
+      descartadosIdioma,
       palabraClave,
       region: region || 'GLOBAL',
       idioma: idioma || null,

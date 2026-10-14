@@ -42,6 +42,8 @@ import { subirPorTrozosTus } from '../../../../../lib/tusUpload';
 import type { Proyecto, Clip } from '../../../../../lib/supabase/types';
 import { extract16kHzAudio } from '../../../../../lib/audioExtractor';
 import { copiarEnElGesto } from '../../../../../lib/portapapeles';
+import { anotarBitacora, type LineaBitacora } from '../../../../../lib/bitacoraAnalisis';
+import { AnalisisEnVivo } from '../../../../../components/proyecto/AnalisisEnVivo';
 import { generarVentanasTemporales, calcularHeuristicasVentanas } from '../../../../../lib/audioHeuristics';
 import { captureVideoFrame } from '../../../../../lib/thumbnailExtractor';
 import { toast } from 'sonner';
@@ -192,6 +194,8 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeProgressPercent, setAnalyzeProgressPercent] = useState(0);
   const [analyzeProgressStage, setAnalyzeProgressStage] = useState('');
+  const [bitacora, setBitacora] = useState<LineaBitacora[]>([]);
+  const [mostrarAnalisis, setMostrarAnalisis] = useState(false);
   const [clips, setClips] = useState<ClipItem[]>([]);
   const [selectedClipIds, setSelectedClipIds] = useState<Set<string>>(new Set());
   const [activeClipPreview, setActiveClipPreview] = useState<ClipItem | null>(null);
@@ -1115,6 +1119,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     setAnalyzing(true);
     setAnalyzeProgressPercent(15);
     setAnalyzeProgressStage('Dividiendo transcripción en ventanas de 30s...');
+    let esperaAnalisis = 700;
 
     try {
       const duracionTotal = proyecto?.duracion_seg || (transcriptData.segments.length ? transcriptData.segments[transcriptData.segments.length - 1].end : 180);
@@ -1183,6 +1188,17 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
 
       setClips(clipsWithThumbs);
       setSelectedClipIds(new Set(clipsWithThumbs.slice(0, 3).map(c => c.id)));
+      clipsWithThumbs.forEach((c, i) => {
+        window.setTimeout(() => {
+          setBitacora((prev) =>
+            anotarBitacora(
+              prev,
+              `Corte ${i + 1}: ${c.titulo_hook} · ${formatTime(c.inicio_seg)}–${formatTime(c.fin_seg)}`
+            )
+          );
+        }, 450 * (i + 1));
+      });
+      esperaAnalisis = Math.max(700, clipsWithThumbs.length * 450 + 600);
 
       // 5. Actualizar estado del proyecto a 'analizado'
       const updatedProj: Proyecto = {
@@ -1245,7 +1261,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     } finally {
       setTimeout(() => {
         setAnalyzing(false);
-      }, 700);
+      }, esperaAnalisis);
     }
   };
 
@@ -1626,6 +1642,24 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     };
   };
 
+  useEffect(() => {
+    if (!transcribing) return;
+    setMostrarAnalisis(true);
+    const texto = [progressStage, progressDetail].filter(Boolean).join(' — ');
+    setBitacora((prev) => anotarBitacora(prev, texto));
+  }, [transcribing, progressStage, progressDetail]);
+
+  useEffect(() => {
+    if (!analyzing) return;
+    setMostrarAnalisis(true);
+    setBitacora((prev) => anotarBitacora(prev, analyzeProgressStage));
+  }, [analyzing, analyzeProgressStage]);
+
+  useEffect(() => {
+    if (!(transcribing || analyzing)) return;
+    document.getElementById('analisis-en-vivo')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [transcribing, analyzing]);
+
   return (
     <div className="flex-1 bg-[#0a0a12] text-slate-100 min-h-screen py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -1707,6 +1741,32 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
           </div>
         </div>
 
+        {mostrarAnalisis && (transcribing || analyzing || bitacora.length > 0) && (
+          <div id="analisis-en-vivo" className="space-y-2">
+            <AnalisisEnVivo
+              youtubeId={proyecto?.video_url ? null : videoIdYt}
+              videoUrl={proyecto?.video_url || null}
+              trabajando={transcribing || analyzing}
+              etapa={
+                transcribing
+                  ? (progressStage || 'Preparando la transcripción…')
+                  : (analyzeProgressStage || 'Buscando momentos…')
+              }
+              porcentaje={transcribing ? progressPercent : analyzing ? analyzeProgressPercent : 100}
+              lineas={bitacora}
+            />
+            {!transcribing && !analyzing && (
+              <button
+                type="button"
+                onClick={() => setMostrarAnalisis(false)}
+                className="text-xs text-slate-400 underline underline-offset-2"
+              >
+                Ocultar este análisis
+              </button>
+            )}
+          </div>
+        )}
+
         {/* SECTION A: If project is 'nuevo' and not transcribed yet */}
         {isNuevo && !transcriptData && (
           <div className="bg-gradient-to-br from-[#131326] via-[#171730] to-[#121222] border border-purple-900/50 rounded-2xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
@@ -1750,26 +1810,9 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
               </div>
 
               {transcribing ? (
-                <div className="bg-[#0e0e1a] border border-purple-500/40 rounded-xl p-5 space-y-3">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-purple-300 flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                      {progressStage}
-                    </span>
-                    <span className="font-mono font-bold text-cyan-400">{progressPercent}%</span>
-                  </div>
-                  
-                  <div className="w-full bg-[#18182e] h-2.5 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-gradient-to-r from-purple-600 via-cyan-500 to-emerald-400 h-full transition-all duration-300 ease-out"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
-
-                  <p className="text-[11px] text-slate-400 italic">
-                    {progressDetail || 'Procesando...'}
-                  </p>
-                </div>
+                <p className="text-xs text-cyan-200/80">
+                  El vídeo de arriba sigue en marcha. Debajo se va escribiendo lo que está pasando.
+                </p>
               ) : (
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3">
                   <button
@@ -1948,37 +1991,6 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                   </p>
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* SECTION B: Analyzing Viral Hooks Progress Overlay/Card */}
-        {analyzing && (
-          <div className="bg-gradient-to-r from-purple-950/60 via-[#15152a] to-pink-950/60 border border-purple-500/50 rounded-2xl p-6 shadow-2xl space-y-4 animate-pulse">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-pink-400">
-                  <Sparkles className="w-5 h-5 animate-spin" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">
-                    {analyzeProgressStage || 'Analizando momentos virales...'}
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Llama 3.3 70B evaluando ganchos + Web Audio API computando energía y velocidad
-                  </p>
-                </div>
-              </div>
-              <span className="font-mono text-base font-extrabold text-pink-400">
-                {analyzeProgressPercent}%
-              </span>
-            </div>
-
-            <div className="w-full bg-[#18182e] h-3 rounded-full overflow-hidden">
-              <div 
-                className="bg-gradient-to-r from-purple-600 via-indigo-500 to-pink-500 h-full transition-all duration-300 ease-out"
-                style={{ width: `${analyzeProgressPercent}%` }}
-              />
             </div>
           </div>
         )}

@@ -44,6 +44,8 @@ import { extract16kHzAudio } from '../../../../../lib/audioExtractor';
 import { copiarEnElGesto } from '../../../../../lib/portapapeles';
 import { anotarBitacora, type LineaBitacora } from '../../../../../lib/bitacoraAnalisis';
 import { AnalisisEnVivo } from '../../../../../components/proyecto/AnalisisEnVivo';
+import { FichaPublicacion } from '../../../../../components/proyecto/FichaPublicacion';
+import { capitulosDeVideo, textoDeCorte, textoFicha } from '../../../../../lib/fichaPublicacion';
 import { generarVentanasTemporales, calcularHeuristicasVentanas } from '../../../../../lib/audioHeuristics';
 import { captureVideoFrame } from '../../../../../lib/thumbnailExtractor';
 import { toast } from 'sonner';
@@ -1604,6 +1606,26 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
     : (transcriptData?.segments?.flatMap(s => s.words || []) || []);
 
   const displayTitle = proyecto?.titulo || 'Proyecto sin título';
+  const segmentosFicha = (transcriptData?.segments || []).map((s) => ({
+    start: s.start,
+    end: s.end,
+    text: s.text,
+  }));
+  const fichaTexto = clips.length
+    ? textoFicha({
+        titulo: displayTitle,
+        cortes: clips.map((c) => ({ titulo: c.titulo_hook, inicio: c.inicio_seg, fin: c.fin_seg })),
+        segmentos: segmentosFicha,
+        duracionSeg: proyecto?.duracion_seg || videoDuration,
+      })
+    : '';
+  const capitulosFicha = clips.length
+    ? capitulosDeVideo({
+        cortes: clips.map((c) => ({ titulo: c.titulo_hook, inicio: c.inicio_seg, fin: c.fin_seg })),
+        segmentos: segmentosFicha,
+        duracionSeg: proyecto?.duracion_seg || videoDuration,
+      })
+    : [];
   const isNuevo = proyecto?.estado === 'nuevo' || proyecto?.estado === 'importando';
   const isTranscrito = proyecto?.estado === 'transcrito';
   const isAnalizado = proyecto?.estado === 'analizado' || clips.length > 0;
@@ -2099,6 +2121,16 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
               </div>
             )}
 
+            {clips.length > 0 && fichaTexto && (
+              <FichaPublicacion
+                titulo={displayTitle}
+                texto={fichaTexto}
+                transcripcion={transcriptData.text || segmentosFicha.map((s) => s.text).join(' ')}
+                duracionSeg={proyecto?.duracion_seg || videoDuration}
+                capitulosSuficientes={capitulosFicha.length >= 3}
+              />
+            )}
+
             {/* PLAYLIST GRID: Video on Left (5 cols) | Cards / Transcript on Right (7 cols) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               
@@ -2429,6 +2461,23 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                                     >
                                       <Edit3 className="w-3 h-3 text-amber-400" />
                                       <span>Editar</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const ok = copiarEnElGesto(textoDeCorte({
+                                          titulo: clip.titulo_hook,
+                                          inicio: clip.inicio_seg,
+                                          fin: clip.fin_seg,
+                                          texto: clip.texto_transcrito,
+                                        }));
+                                        if (ok) toast.success('Texto del corte copiado');
+                                        else toast.error('No se ha podido copiar');
+                                      }}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1a1a32] text-slate-300 hover:text-white hover:bg-purple-900/40 transition-colors cursor-pointer"
+                                    >
+                                      <Copy className="w-3 h-3 text-cyan-400" />
+                                      <span>Copiar texto</span>
                                     </button>
                                   </div>
 

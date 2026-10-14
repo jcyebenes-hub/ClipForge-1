@@ -60,6 +60,7 @@ export const AnalisisEnVivo: React.FC<Props> = ({
             muted
             loop
             playsInline
+            controls
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-500">

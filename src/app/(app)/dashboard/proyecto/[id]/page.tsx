@@ -866,7 +866,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       } catch (extractErr) {
         const msg = extractErr instanceof Error ? extractErr.message : String(extractErr);
         if (/no tiene pista de audio/i.test(msg)) {
-          throw new Error('Este archivo no tiene sonido, así que no hay nada que transcribir.');
+          throw new Error('Este archivo solo trae la imagen. YouTube manda el sonido aparte: en el descargador baja el audio (m4a o mp3) y súbelo. El MP4 de alta calidad suele ir mudo.');
         }
         const cabeEnWhisper = file.size <= 25 * 1024 * 1024;
         if (!cabeEnWhisper) {
@@ -1024,7 +1024,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
           const msg = extractErr instanceof Error ? extractErr.message : String(extractErr);
           // Sin pista de audio: mensaje claro, no tiene sentido enviar a Whisper.
           if (/no tiene pista de audio/i.test(msg)) {
-            throw new Error('Este vídeo no tiene pista de audio, así que no hay nada que transcribir. Revisa el archivo o usa un enlace de YouTube.');
+            throw new Error('Este archivo solo trae la imagen. YouTube manda el sonido aparte: baja el audio (m4a o mp3) y súbelo. El MP4 de alta calidad suele ir mudo.');
           }
           if (/Hay sonido/i.test(msg) && videoBlob.size <= 25 * 1024 * 1024) {
             console.warn('Hay sonido pero no se pudo separar; se envía el archivo:', extractErr);
@@ -1949,7 +1949,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                       </div>
                       <div className="mt-4 border-t border-slate-700/50 pt-3.5">
                         <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
-                          Paso 2 · Ábrelo en el descargador y baja el MP4
+                          Paso 2 · Baja el audio, no el vídeo mudo
                         </p>
                         <a
                           href={DESCARGADOR_YT}
@@ -1966,13 +1966,17 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                             <>
                               En la página que se abre,{' '}
                               <strong className="text-slate-200">mantén pulsado y elige Pegar</strong>.
-                              Pulsa <strong className="text-slate-200">Download</strong> y escoge MP4.
+                              Pulsa <strong className="text-slate-200">Download</strong> y escoge{' '}
+                              <strong className="text-slate-200">audio, m4a o mp3</strong>.
+                              No bajes el MP4 de 1080p: suele venir sin sonido.
                             </>
                           ) : (
                             <>
                               En la página que se abre,{' '}
                               <strong className="text-slate-200">pega con Ctrl+V</strong> y pulsa{' '}
-                              <strong className="text-slate-200">Download</strong>. Escoge MP4.
+                              <strong className="text-slate-200">Download</strong>. Escoge{' '}
+                              <strong className="text-slate-200">audio, m4a o mp3</strong>.
+                              No bajes el MP4 de 1080p: suele venir sin sonido.
                             </>
                           )}
                         </p>
@@ -2744,12 +2748,12 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                   {esMovil() ? (
                     <>
                       En la página que se abre, <strong className="text-slate-200">mantén pulsado y elige Pegar</strong>.
-                      Pulsa <strong className="text-slate-200">Download</strong> y escoge MP4.
+                      Pulsa <strong className="text-slate-200">Download</strong> y escoge un MP4 que incluya audio. El de 1080p a veces es solo imagen.
                     </>
                   ) : (
                     <>
                       En la página que se abre, <strong className="text-slate-200">pega con Ctrl+V</strong> y pulsa{' '}
-                      <strong className="text-slate-200">Download</strong>. Escoge MP4.
+                      <strong className="text-slate-200">Download</strong>. Escoge un MP4 que incluya audio. El de 1080p a veces es solo imagen.
                     </>
                   )}
                 </p>

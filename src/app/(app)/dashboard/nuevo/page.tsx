@@ -26,7 +26,6 @@ import type { YoutubeInfoResponse } from '../../../api/youtube/info/route';
 import { validarArchivoVideo } from '../../../../lib/videoValidator';
 import { sanitizarTitulo } from '../../../../lib/sanitizer';
 import { CopyrightNoticeModal, hasAcceptedCopyrightNotice } from '../../../../components/proyecto/CopyrightNoticeModal';
-import { ReproductorYoutube } from '../../../../components/proyecto/ReproductorYoutube';
 import { subirPorTrozosTus } from '../../../../lib/tusUpload';
 import { getSupabaseEnv } from '../../../../lib/supabase/client';
 import { toast } from 'sonner';
@@ -326,7 +325,6 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
       if (response.ok) {
         const data: YoutubeInfoResponse = await response.json();
         setYtInfo({ ...base, ...data });
-        toast.success('Vídeo real localizado en YouTube');
       } else {
         setYtInfo(base);
         toast.info('El servidor no pudo leer los datos (YouTube lo protege), pero el vídeo se mostrará desde tu navegador.');
@@ -788,7 +786,10 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
                     type="url"
                     id="youtube-url-input"
                     value={youtubeUrl}
-                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                    onChange={(e) => {
+                      setYoutubeUrl(e.target.value);
+                      setViendoEnlace(false);
+                    }}
                     placeholder="https://www.youtube.com/watch?v=... o https://youtu.be/..."
                     disabled={isAnalyzingYt || isDownloadingYt}
                     className="w-full pl-11 pr-4 py-3 bg-[#0e0e1a] border border-purple-900/50 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/40 transition-colors"
@@ -816,9 +817,38 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
 
               {(() => {
                 const id = extraerIdYoutube(youtubeUrl.trim());
-                return id && /^[\w-]{11}$/.test(id) ? (
-                  <ReproductorYoutube videoId={id} />
-                ) : null;
+                if (!id || !/^[\w-]{11}$/.test(id)) return null;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setViendoEnlace(true)}
+                    className="relative block w-full overflow-hidden rounded-xl border border-purple-900/50 bg-black aspect-video"
+                    title="Ver el vídeo"
+                  >
+                    {viendoEnlace ? (
+                      <iframe
+                        className="absolute inset-0 h-full w-full"
+                        src={`https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`}
+                        title="Vídeo de YouTube"
+                        allow="autoplay; encrypted-media; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <>
+                        <img
+                          src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}
+                          alt="Miniatura del vídeo"
+                          className="h-full w-full object-cover"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center">
+                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white shadow-lg">
+                            <Play className="h-5 w-5 fill-white" />
+                          </span>
+                        </span>
+                      </>
+                    )}
+                  </button>
+                );
               })()}
 
               {/* Sample Quick Links */}

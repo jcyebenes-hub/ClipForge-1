@@ -45,6 +45,7 @@ import { copiarEnElGesto } from '../../../../../lib/portapapeles';
 import { anotarBitacora, type LineaBitacora } from '../../../../../lib/bitacoraAnalisis';
 import { AnalisisEnVivo } from '../../../../../components/proyecto/AnalisisEnVivo';
 import { FichaPublicacion } from '../../../../../components/proyecto/FichaPublicacion';
+import { ReproductorYoutube } from '../../../../../components/proyecto/ReproductorYoutube';
 import { capitulosDeVideo, textoDeCorte, textoFicha } from '../../../../../lib/fichaPublicacion';
 import { generarVentanasTemporales, calcularHeuristicasVentanas } from '../../../../../lib/audioHeuristics';
 import { captureVideoFrame } from '../../../../../lib/thumbnailExtractor';
@@ -1805,6 +1806,10 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
               </button>
             )}
           </div>
+        )}
+
+        {esYoutube && videoIdYt && !transcriptData && !transcribing && (
+          <ReproductorYoutube videoId={videoIdYt} titulo={displayTitle} />
         )}
 
         {/* SECTION A: If project is 'nuevo' and not transcribed yet */}

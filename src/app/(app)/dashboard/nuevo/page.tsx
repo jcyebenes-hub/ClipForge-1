@@ -26,6 +26,7 @@ import type { YoutubeInfoResponse } from '../../../api/youtube/info/route';
 import { validarArchivoVideo } from '../../../../lib/videoValidator';
 import { sanitizarTitulo } from '../../../../lib/sanitizer';
 import { CopyrightNoticeModal, hasAcceptedCopyrightNotice } from '../../../../components/proyecto/CopyrightNoticeModal';
+import { ReproductorYoutube } from '../../../../components/proyecto/ReproductorYoutube';
 import { subirPorTrozosTus } from '../../../../lib/tusUpload';
 import { getSupabaseEnv } from '../../../../lib/supabase/client';
 import { toast } from 'sonner';
@@ -812,6 +813,13 @@ export const NuevoProyectoPage: React.FC<NuevoProyectoPageProps> = ({ onNavigate
                   )}
                 </button>
               </div>
+
+              {(() => {
+                const id = extraerIdYoutube(youtubeUrl.trim());
+                return id && /^[\w-]{11}$/.test(id) ? (
+                  <ReproductorYoutube videoId={id} />
+                ) : null;
+              })()}
 
               {/* Sample Quick Links */}
               <div className="flex items-center gap-2 text-[11px] text-slate-400">

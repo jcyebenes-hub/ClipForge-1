@@ -866,7 +866,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
       } catch (extractErr) {
         const msg = extractErr instanceof Error ? extractErr.message : String(extractErr);
         if (/no tiene pista de audio/i.test(msg)) {
-          throw new Error('Este archivo solo trae la imagen. YouTube manda el sonido aparte: en el descargador baja el audio (m4a o mp3) y súbelo. El MP4 de alta calidad suele ir mudo.');
+          throw new Error('Este archivo solo trae la imagen. Ábrelo otra vez en el descargador, pulsa Descargar vídeo sin instalación, y sube ese archivo. No uses el botón que instala un programa.');
         }
         const cabeEnWhisper = file.size <= 25 * 1024 * 1024;
         if (!cabeEnWhisper) {
@@ -1024,7 +1024,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
           const msg = extractErr instanceof Error ? extractErr.message : String(extractErr);
           // Sin pista de audio: mensaje claro, no tiene sentido enviar a Whisper.
           if (/no tiene pista de audio/i.test(msg)) {
-            throw new Error('Este archivo solo trae la imagen. YouTube manda el sonido aparte: baja el audio (m4a o mp3) y súbelo. El MP4 de alta calidad suele ir mudo.');
+            throw new Error('Este archivo solo trae la imagen. Ábrelo otra vez en el descargador, pulsa Descargar vídeo sin instalación, y sube ese archivo.');
           }
           if (/Hay sonido/i.test(msg) && videoBlob.size <= 25 * 1024 * 1024) {
             console.warn('Hay sonido pero no se pudo separar; se envía el archivo:', extractErr);
@@ -1313,7 +1313,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
    * modal de subir el vídeo original y el aviso de que YouTube bloquea los
    * subtítulos. Si un día cambia, se cambia una vez.
    */
-  const DESCARGADOR_YT = 'https://www.ytultra.com/es/youtube-video-downloader/';
+  const DESCARGADOR_YT = 'https://www.freemake.com/es/free_video_downloader_splendid/';
 
   const marcarEnlaceCopiado = () => {
     setEnlaceCopiado(true);
@@ -1949,7 +1949,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                       </div>
                       <div className="mt-4 border-t border-slate-700/50 pt-3.5">
                         <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
-                          Paso 2 · Baja el audio, no el vídeo mudo
+                          Paso 2 · Baja el vídeo con sonido, sin instalar nada
                         </p>
                         <a
                           href={DESCARGADOR_YT}
@@ -1966,17 +1966,15 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                             <>
                               En la página que se abre,{' '}
                               <strong className="text-slate-200">mantén pulsado y elige Pegar</strong>.
-                              Pulsa <strong className="text-slate-200">Download</strong> y escoge{' '}
-                              <strong className="text-slate-200">audio, m4a o mp3</strong>.
-                              No bajes el MP4 de 1080p: suele venir sin sonido.
+                              Pulsa <strong className="text-slate-200">Descargar vídeo sin instalación</strong>.
+                              No pulses el botón que descarga un programa (.exe).
                             </>
                           ) : (
                             <>
                               En la página que se abre,{' '}
                               <strong className="text-slate-200">pega con Ctrl+V</strong> y pulsa{' '}
-                              <strong className="text-slate-200">Download</strong>. Escoge{' '}
-                              <strong className="text-slate-200">audio, m4a o mp3</strong>.
-                              No bajes el MP4 de 1080p: suele venir sin sonido.
+                              <strong className="text-slate-200">Descargar vídeo sin instalación</strong>.
+                              No pulses el botón que descarga un programa (.exe).
                             </>
                           )}
                         </p>
@@ -2732,7 +2730,7 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-cyan-300">
                   <span className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center text-[10px] shrink-0">2</span>
-                  Ábrelo en el descargador y baja el MP4
+                  Ábrelo en el descargador y baja el vídeo con sonido
                 </div>
                 <a
                   href={DESCARGADOR_YT}
@@ -2748,12 +2746,14 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
                   {esMovil() ? (
                     <>
                       En la página que se abre, <strong className="text-slate-200">mantén pulsado y elige Pegar</strong>.
-                      Pulsa <strong className="text-slate-200">Download</strong> y escoge un MP4 que incluya audio. El de 1080p a veces es solo imagen.
+                      Pulsa <strong className="text-slate-200">Descargar vídeo sin instalación</strong>.
+                      No pulses el botón que descarga un programa (.exe).
                     </>
                   ) : (
                     <>
                       En la página que se abre, <strong className="text-slate-200">pega con Ctrl+V</strong> y pulsa{' '}
-                      <strong className="text-slate-200">Download</strong>. Escoge un MP4 que incluya audio. El de 1080p a veces es solo imagen.
+                      <strong className="text-slate-200">Descargar vídeo sin instalación</strong>.
+                      No pulses el botón que descarga un programa (.exe).
                     </>
                   )}
                 </p>

@@ -868,11 +868,20 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
         if (/no tiene pista de audio/i.test(msg)) {
           throw new Error('Este archivo no tiene sonido, así que no hay nada que transcribir.');
         }
-        if (msg === '__TIMEOUT_AUDIO__' || file.size > 25 * 1024 * 1024) {
+        const cabeEnWhisper = file.size <= 25 * 1024 * 1024;
+        if (!cabeEnWhisper) {
           throw new Error(
-            `El archivo pesa ${(file.size / 1048576).toFixed(0)} MB. En el descargador elige 720p, o solo el audio, y vuelve a subirlo.`
+            /Hay sonido/i.test(msg)
+              ? 'Este archivo tiene sonido, pero el teléfono no ha podido separarlo. En el descargador elige 720p, o solo el audio, y vuelve a subirlo.'
+              : `El archivo pesa ${(file.size / 1048576).toFixed(0)} MB. En el descargador elige 720p, o solo el audio, y vuelve a subirlo.`
           );
         }
+        if (msg === '__TIMEOUT_AUDIO__') {
+          throw new Error('Ha tardado demasiado en separar el audio. Prueba con un archivo más corto, o solo el audio.');
+        }
+        // El sonido está. Si no se puede separar aquí, se manda el archivo entero.
+        audioParaEnviar = file;
+        nombreEnvio = file.name || 'video.mp4';
       }
       if (audioParaEnviar.size > 25 * 1024 * 1024) {
         throw new Error('El vídeo es demasiado largo para transcribirlo de una vez. Prueba con uno más corto.');
@@ -1017,15 +1026,24 @@ export const ProyectoPage: React.FC<ProyectoDetallePageProps> = ({
           if (/no tiene pista de audio/i.test(msg)) {
             throw new Error('Este vídeo no tiene pista de audio, así que no hay nada que transcribir. Revisa el archivo o usa un enlace de YouTube.');
           }
-          // Respaldo: enviar el vídeo a Whisper, pero solo si no supera el límite de Groq.
-          const MAX_MB = 25;
-          if (videoBlob.size > MAX_MB * 1024 * 1024) {
-            throw new Error(`El vídeo pesa ${(videoBlob.size / 1048576).toFixed(1)} MB y supera el límite de ${MAX_MB} MB para transcribirlo directamente. Prueba con un vídeo más corto o pega un enlace de YouTube.`);
+          if (/Hay sonido/i.test(msg) && videoBlob.size <= 25 * 1024 * 1024) {
+            console.warn('Hay sonido pero no se pudo separar; se envía el archivo:', extractErr);
+            setProgressStage('Enviando el vídeo a Whisper…');
+            audioBlobToSend = videoBlob;
+            calculatedDuration = Math.round(proyecto?.duracion_seg || 0);
+          } else if (/Hay sonido/i.test(msg)) {
+            throw new Error('Este vídeo tiene sonido, pero no he podido separarlo. Prueba con uno más corto o pega un enlace de YouTube.');
+          } else {
+            // Respaldo: enviar el vídeo a Whisper, pero solo si no supera el límite de Groq.
+            const MAX_MB = 25;
+            if (videoBlob.size > MAX_MB * 1024 * 1024) {
+              throw new Error(`El vídeo pesa ${(videoBlob.size / 1048576).toFixed(1)} MB y supera el límite de ${MAX_MB} MB para transcribirlo directamente. Prueba con un vídeo más corto o pega un enlace de YouTube.`);
+            }
+            console.warn('Extracción de audio falló; se envía el vídeo original a Whisper:', extractErr);
+            setProgressStage('Enviando vídeo a Whisper (extracción local no disponible)...');
+            audioBlobToSend = videoBlob;
+            calculatedDuration = Math.round(proyecto?.duracion_seg || 0);
           }
-          console.warn('Extracción de audio falló; se envía el vídeo original a Whisper:', extractErr);
-          setProgressStage('Enviando vídeo a Whisper (extracción local no disponible)...');
-          audioBlobToSend = videoBlob;
-          calculatedDuration = Math.round(proyecto?.duracion_seg || 0);
         }
       }
 

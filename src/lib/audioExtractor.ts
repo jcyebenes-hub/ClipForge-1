@@ -66,6 +66,11 @@ export interface AudioExtractionProgress {
  * Extrae la pista de audio de un archivo de vídeo o URL y la remuestrea a 16kHz mono.
  */
 import { getLoadedFFmpeg } from './videoCutter';
+import {
+  contenedorTienePistaAudio,
+  extensionParaFFmpeg,
+  logsIndicanSinAudio,
+} from './pistaAudio';
 
 /**
  * Extrae el audio a 16kHz mono con FFmpeg WASM. Es fiable con cualquier
@@ -82,75 +87,98 @@ function parsearDuracionFFmpeg(logs: string[]): number {
   return 0;
 }
 
+async function leerSalida(
+  ffmpeg: Awaited<ReturnType<typeof getLoadedFFmpeg>>,
+  nombre: string
+): Promise<Uint8Array | null> {
+  try {
+    const out = (await ffmpeg.readFile(nombre)) as Uint8Array;
+    return out.length > 44 ? out : null;
+  } catch {
+    return null;
+  }
+}
+
 async function extraerConFFmpeg(
   arrayBuffer: ArrayBuffer,
+  extension: string,
   onProgress?: (p: AudioExtractionProgress) => void
 ): Promise<{ audioBlob: Blob; duration: number }> {
   const logs: string[] = [];
-  // getLoadedFFmpeg solo engancha onLog en la PRIMERA carga; si la instancia ya
-  // existe (p. ej. la cargó el recorte vertical) lo ignora. Enganchamos nuestro
-  // propio listener SIEMPRE para tener el diagnóstico real.
   const ffmpeg = await getLoadedFFmpeg();
   const logHandler = ({ message }: { message: string }) => {
     logs.push(message);
-    if (logs.length > 300) logs.shift();
+    if (logs.length > 400) logs.shift();
   };
   ffmpeg.on('log', logHandler);
-  const inName = 'audio_in_video.mp4';
 
-  await ffmpeg.writeFile(inName, new Uint8Array(arrayBuffer));
-  onProgress?.({ percent: 30, stage: 'Extrayendo pista de audio con FFmpeg...' });
+  const extensiones = [extension, 'mp4', 'mov', 'webm', 'mkv'].filter(
+    (ext, i, todas) => todas.indexOf(ext) === i
+  );
+  let ultimoNombre = '';
 
-  // A) Recodificar a WAV 16k mono: lo ideal para Whisper y da la duración exacta.
-  const wavName = 'audio_16k.wav';
-  let code = await ffmpeg.exec([
-    '-i', inName,
-    '-map', '0:a:0',
-    '-vn',
-    '-ac', '1',
-    '-ar', '16000',
-    '-c:a', 'pcm_s16le',
-    '-f', 'wav',
-    wavName,
-  ]);
-  if (code === 0) {
-    const out = (await ffmpeg.readFile(wavName)) as Uint8Array;
-    if (out.length > 44) {
-      const duration = (out.length - 44) / (16000 * 2);
-      try { await ffmpeg.deleteFile(inName); await ffmpeg.deleteFile(wavName); } catch {}
-      onProgress?.({ percent: 60, stage: 'Audio preparado para Whisper IA', detail: `Duración: ${Math.round(duration)}s` });
-      return { audioBlob: new Blob([out.buffer], { type: 'audio/wav' }), duration };
+  try {
+    for (const ext of extensiones) {
+      const inName = `audio_in.${ext}`;
+      ultimoNombre = inName;
+      await ffmpeg.writeFile(inName, new Uint8Array(arrayBuffer));
+      onProgress?.({ percent: 30, stage: 'Extrayendo pista de audio con FFmpeg...' });
+
+      const wavName = 'audio_16k.wav';
+      // Sin -map 0:a:0: ese mapa falla en varios móviles aunque el sonido exista,
+      // y el mensaje se confundía con "no hay audio".
+      let code = await ffmpeg.exec([
+        '-i', inName,
+        '-vn',
+        '-ac', '1',
+        '-ar', '16000',
+        '-c:a', 'pcm_s16le',
+        '-f', 'wav',
+        wavName,
+      ]);
+      if (code === 0) {
+        const out = await leerSalida(ffmpeg, wavName);
+        if (out) {
+          const duration = (out.length - 44) / (16000 * 2);
+          onProgress?.({ percent: 60, stage: 'Audio preparado para Whisper IA', detail: `Duración: ${Math.round(duration)}s` });
+          return { audioBlob: new Blob([out.buffer], { type: 'audio/wav' }), duration };
+        }
+      }
+
+      const m4aName = 'audio_copy.m4a';
+      code = await ffmpeg.exec([
+        '-i', inName,
+        '-vn',
+        '-c:a', 'copy',
+        '-f', ext === 'webm' || ext === 'mkv' ? 'webm' : 'mp4',
+        m4aName,
+      ]);
+      if (code === 0) {
+        const out = await leerSalida(ffmpeg, m4aName);
+        if (out) {
+          const duration = parsearDuracionFFmpeg(logs);
+          onProgress?.({ percent: 60, stage: 'Audio preparado para Whisper IA', detail: `Duración: ${Math.round(duration)}s` });
+          return { audioBlob: new Blob([out.buffer], { type: ext === 'webm' ? 'audio/webm' : 'audio/mp4' }), duration };
+        }
+      }
+
+      const abrio = /Input #\d+/i.test(logs.join('\n'));
+      try { await ffmpeg.deleteFile(inName); } catch { /* ya no está */ }
+      ultimoNombre = '';
+      if (abrio) break;
     }
+  } finally {
+    if (ultimoNombre) {
+      try { await ffmpeg.deleteFile(ultimoNombre); } catch { /* ya no está */ }
+    }
+    try { await ffmpeg.deleteFile('audio_16k.wav'); } catch { /* puede no existir */ }
+    try { await ffmpeg.deleteFile('audio_copy.m4a'); } catch { /* puede no existir */ }
   }
 
-  // B) Si el códec de audio no se puede recodificar aquí (build WASM sin ese
-  //    decodificador), COPIAR la pista tal cual. No necesita decodificador y
-  //    Whisper la decodifica en su servidor. Mismo truco que usa el corte.
-  const m4aName = 'audio_copy.m4a';
-  code = await ffmpeg.exec([
-    '-i', inName,
-    '-map', '0:a:0',
-    '-vn',
-    '-c:a', 'copy',
-    '-f', 'mp4',
-    m4aName,
-  ]);
-  if (code === 0) {
-    const out = (await ffmpeg.readFile(m4aName)) as Uint8Array;
-    if (out.length > 0) {
-      const duration = parsearDuracionFFmpeg(logs);
-      try { await ffmpeg.deleteFile(inName); await ffmpeg.deleteFile(m4aName); } catch {}
-      onProgress?.({ percent: 60, stage: 'Audio preparado para Whisper IA', detail: `Duración: ${Math.round(duration)}s` });
-      return { audioBlob: new Blob([out.buffer], { type: 'audio/mp4' }), duration };
-    }
-  }
-
-  try { await ffmpeg.deleteFile(inName); } catch {}
-  const logText = logs.join(' ');
-  if (/matches no streams|does not contain any stream|Output file #0 does not contain/i.test(logText)) {
+  if (logsIndicanSinAudio(logs)) {
     throw new Error('El vídeo no tiene pista de audio.');
   }
-  throw new Error(`FFmpeg no pudo extraer el audio: ${logs.slice(-5).join(' | ')}`);
+  throw new Error(`FFmpeg no pudo extraer el audio: ${logs.slice(-5).join(' | ') || 'sin detalle'}`);
 }
 
 export async function extract16kHzAudio(
@@ -164,15 +192,18 @@ export async function extract16kHzAudio(
     source instanceof ArrayBuffer ? source.slice(0) : await source.arrayBuffer();
 
   let errorFFmpeg: unknown = null;
+  const bytes = new Uint8Array(await leerBytes());
+  const pista = contenedorTienePistaAudio(bytes);
+  const nombre = source instanceof File ? source.name : '';
 
   // 1) FFmpeg WASM: fiable con cualquier contenedor de vídeo.
   try {
     onProgress?.({ percent: 15, stage: 'Extrayendo audio con FFmpeg...' });
-    return await extraerConFFmpeg(await leerBytes(), onProgress);
+    return await extraerConFFmpeg(bytes.buffer, extensionParaFFmpeg(bytes, nombre), onProgress);
   } catch (ffErr) {
     errorFFmpeg = ffErr;
     const mFF2 = ffErr instanceof Error ? ffErr.message : String(ffErr);
-    if (/no tiene pista de audio/i.test(mFF2)) {
+    if (/no tiene pista de audio/i.test(mFF2) && pista !== true) {
       throw new Error('El vídeo no tiene pista de audio, así que no hay nada que transcribir.');
     }
     console.warn('Extracción con FFmpeg falló; se prueba Web Audio:', ffErr);
@@ -210,6 +241,9 @@ export async function extract16kHzAudio(
   } catch (err: any) {
     const mFF = errorFFmpeg instanceof Error ? errorFFmpeg.message : String(errorFFmpeg);
     console.error('Error during client audio extraction:', err);
+    if (pista === true) {
+      throw new Error('Hay sonido, pero no he podido separarlo en este teléfono.');
+    }
     throw new Error(`Fallo al extraer el audio (FFmpeg: ${mFF} · WebAudio: ${err.message || 'no decodificable'})`);
   }
 }

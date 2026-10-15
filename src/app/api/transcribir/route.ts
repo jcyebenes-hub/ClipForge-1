@@ -118,11 +118,11 @@ export async function POST(request: Request) {
       try {
         const groqFormData = new FormData();
         const blobType = audioBlob.type || '';
-        const groqName = blobType.includes('mp4') ? 'audio.mp4'
-          : blobType.includes('webm') ? 'audio.webm'
+        const groqName = blobType.includes('webm') ? 'audio.webm'
           : blobType.includes('wav') ? 'audio.wav'
           : blobType.includes('mpeg') || blobType.includes('mp3') ? 'audio.mp3'
-          : 'audio.m4a';
+          : blobType.includes('ogg') ? 'audio.ogg'
+          : 'audio.mp4';
         groqFormData.append('file', audioBlob, groqName);
         groqFormData.append('model', 'whisper-large-v3-turbo');
         groqFormData.append('response_format', 'verbose_json');
